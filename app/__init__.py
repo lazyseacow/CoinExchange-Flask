@@ -5,12 +5,12 @@ import redis
 from flask import Flask, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-# from flask_mail import Mail
+from flask_mail import Mail
 
 from config import APP_ENV, config
 
 db = SQLAlchemy()
-# mail = Mail()
+mail = Mail()
 redis_conn = None
 
 
@@ -50,9 +50,9 @@ def creat_app():
     redis_conn = redis.StrictRedis(host=config[APP_ENV].REDIS_HOST, port=config[APP_ENV].REDIS_PORT)
 
     db.init_app(app)
-    # mail.init_app(app)
+    mail.init_app(app)
 
-    #注册api_v1_0 蓝图
+    # 注册api_v1_0 蓝图
     from app.api import api
     app.register_blueprint(api, url_prefix='/api/v1.0')
 
