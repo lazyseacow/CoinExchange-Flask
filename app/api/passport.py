@@ -1,5 +1,5 @@
 from flask import g, current_app, jsonify, request, make_response
-import bs64
+# import bs64
 from flask_httpauth import HTTPBasicAuth
 from app import db, redis_conn
 from app.api import api
@@ -99,6 +99,5 @@ def unauthorized():
 
 @api.route('/')
 @auth.login_required()
-def get_resourse():
+def get_resource():
     return jsonify({'data': 'Hello, %s!' % g.user.email})
-

@@ -7,11 +7,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from . import db
 
 
-class User:
+class User(db.Model):
     """
     用户表
     """
-    __tablename__ = 'users'
+    __tablename__ = 'user'
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, index=True)
@@ -35,7 +35,7 @@ class User:
         """
         验证密码
         :param password:
-        :return: 验证成功返回True，失败返回Flase
+        :return: 验证成功返回True，失败返回False
         """
         return check_password_hash(self.password_hash, password)
 
@@ -67,9 +67,12 @@ class User:
     def to_json(self):
         return {
             'user_id': self.id,
-            'nickname': self.nickname,
+            'phone': self.phone,
             'email': self.email
         }
 
     def __repr__(self):
-        return '<User %r>' % self.nickname
+        return '<User %r>' % self.phone
+
+
+# class

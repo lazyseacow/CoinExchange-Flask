@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 import redis
-from flask import Flask, request
+from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail
@@ -31,7 +31,7 @@ def setupLogging(level):
     logging.getLogger().addHandler(file_log_handler)
 
 
-def creat_app():
+def create_app():
     """
     工厂函数，创建APP实例
     :return app实例

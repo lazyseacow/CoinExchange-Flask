@@ -21,7 +21,7 @@ def send_email(to, phone, mailcode):
     app = current_app._get_current_object()
     msg = Message(current_app.config['FLASK_MAIL_SUBJECT_PREFIX'] + '您的帐号注册验证码',
                   sender=app.config['FLASK_MAIL_SENDER'], recipients=[to])
-    msg.body = 'sended by flask-mail'
+    msg.body = 'sent by flask-mail'
     msg.html = '''
     <h1>
         亲爱的 {phone},
