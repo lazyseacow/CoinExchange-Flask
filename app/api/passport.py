@@ -1,4 +1,4 @@
-from flask import g, current_app, jsonify, request, make_response
+from flask import g, current_app, jsonify, request, make_response, Flask
 # import bs64
 from flask_httpauth import HTTPBasicAuth
 from app import db, redis_conn
@@ -15,21 +15,9 @@ def signin():
     email = request.json.get('email')
     phone = request.json.get('phone')
     password = request.json.get('password')
-    mailcode_client = request.json.get('mailcode')
 
-    if not all([email, phone, password, mailcode_client]):
+    if not all([email, phone, password]):
         return jsonify(errno=RET.PARAMERR, errmsg='参数不完整')
-
-    # 从redis中获取此邮箱对应的验证码，与前端传来的数据校验
-    try:
-        mailcode_server = redis_conn.get('EMAILCODE' + email).decode()
-    except Exception as e:
-        current_app.logger.debug(e)
-        return jsonify(re_code=RET.DBERR, errmsg='查询邮箱验证码失败')
-
-    if mailcode_client != mailcode_server:
-        current_app.logger.debug(mailcode_server)
-        return jsonify(re_code=RET.PARAMERR, errmsg='邮箱验证码错误')
 
     user = User()
     user.email = email
@@ -47,7 +35,7 @@ def signin():
     return jsonify(re_code=RET.OK, errmsg='注册成功')
 
 
-@api.route('login', methoss=['POST'])
+@api.route('/login', methods=['POST'])
 def login():
     """
     login
@@ -55,14 +43,14 @@ def login():
     :return: 返回响应，保持登录状态
     """
 
-    email = request.json.get('email')
+    phone = request.json.get('phone')
     password = request.json.get('password')
 
-    if not all([email, password]):
+    if not all([phone, password]):
         return jsonify(re_code=RET.PARAMERR, errmsg='参数不完整')
 
     try:
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(phone=phone).first()
     except Exception as e:
         current_app.logger.debug(e)
         return jsonify(re_code=RET.DBERR, errmsg='查询用户失败')

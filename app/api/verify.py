@@ -1,11 +1,11 @@
 import random
 import re
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify, request, Flask
 from app import redis_conn
 from app.models import User
 from app.utils.response_code import RET
 from app.utils.email import send_email
-from . import api
+from app.api import api
 
 
 @api.route('/mailcode', methods=['POST'])
