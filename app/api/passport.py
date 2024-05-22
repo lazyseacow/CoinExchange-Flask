@@ -1,6 +1,4 @@
 from datetime import datetime, timedelta
-from functools import wraps
-
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token
 from flask_httpauth import HTTPBasicAuth
@@ -113,4 +111,3 @@ def protected():
         return jsonify(msg='身份认证成功')
     else:
         return jsonify(msg='身份认证失败')
-
