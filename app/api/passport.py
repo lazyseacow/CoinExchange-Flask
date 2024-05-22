@@ -12,13 +12,13 @@ auth = HTTPBasicAuth()
 
 
 @api.route('/register', methods=['POST'])
-def signin():
+def register():
     nickname = request.json.get('nickname')
     email = request.json.get('email')
     phone = request.json.get('phone')
     password = request.json.get('password')
 
-    if not all([email, phone, password]):
+    if not all([nickname, email, phone, password]):
         return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
