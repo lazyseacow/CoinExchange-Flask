@@ -1,7 +1,10 @@
-from flask import g, current_app, jsonify, request, make_response, Flask
-# import bs64
+from datetime import datetime, timedelta
+from functools import wraps
+
+from flask import current_app, jsonify, request
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token
 from flask_httpauth import HTTPBasicAuth
-from app import db, redis_conn
+from app import db
 from app.api import api
 from app.models import User
 from app.utils.response_code import RET
@@ -10,19 +13,28 @@ from app.utils.response_code import RET
 auth = HTTPBasicAuth()
 
 
-@api.route('/signin', methods=['POST'])
+@api.route('/register', methods=['POST'])
 def signin():
+    nickname = request.json.get('nickname')
     email = request.json.get('email')
     phone = request.json.get('phone')
     password = request.json.get('password')
 
     if not all([email, phone, password]):
-        return jsonify(errno=RET.PARAMERR, errmsg='参数不完整')
+        return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
+    phone_exist = user.query.filter_by(phone=phone).first()
+
+    if phone_exist:
+        return jsonify(re_code=RET.DATAEXIST, msg='手机号已注册')
+
+    user.nickname = nickname
     user.email = email
     user.phone = phone
-    user.password = password
+    user.password_hash = user.set_password_hash(password)
+    user.join_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    user.last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         db.session.add(user)
@@ -30,9 +42,9 @@ def signin():
     except Exception as e:
         current_app.logger.debug(e)
         db.session.rollback()
-        return jsonify(re_code=RET.DBERR, errmsg='注册失败')
+        return jsonify(re_code=RET.DBERR, msg='注册失败')
 
-    return jsonify(re_code=RET.OK, errmsg='注册成功')
+    return jsonify(re_code=RET.OK, msg='注册成功')
 
 
 @api.route('/login', methods=['POST'])
@@ -47,45 +59,58 @@ def login():
     password = request.json.get('password')
 
     if not all([phone, password]):
-        return jsonify(re_code=RET.PARAMERR, errmsg='参数不完整')
+        return jsonify(re_code=RET.PARAMERR, msg='账号或密码不能为空')
 
     try:
         user = User.query.filter_by(phone=phone).first()
     except Exception as e:
         current_app.logger.debug(e)
-        return jsonify(re_code=RET.DBERR, errmsg='查询用户失败')
+        return jsonify(re_code=RET.DBERR, msg='查询用户失败')
 
     if not user:
-        return jsonify(re_code=RET.NODATA, errmsg='用户不存在', user=user)
+        return jsonify(re_code=RET.NODATA, msg='用户不存在', user=user)
 
     if not user.verify_password(password):
-        return jsonify(re_code=RET.PWDERR, errmsg='账户名或密码错误')
+        return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
 
     user.update_last_seen()
-    token = user.generate_user_token()
-    return jsonify(re_code=RET.OK, errmsg='登录成功', token=token)
+    access_token = create_access_token(identity=user.phone, expires_delta=timedelta(seconds=10), fresh=True)
+    refresh_token = create_refresh_token(identity=user.phone)
+    return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token, refresh_token=refresh_token)
 
 
-@auth.verify_password
-def verify_password(email_or_token, password):
-    if request.path == '/login':
-        user = User.query.filter_by(email=email_or_token).first()
-        if not user or not user.verify_password(password):
-            return False
+@api.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    """
+    用户在登录状态点击退出登录时，需要清除用户的登录状态
+    :return:
+    """
+    current_user_phone = get_jwt_identity()
+    if User.query.filter_by(phone=current_user_phone):
+        return jsonify(re_code=RET.OK, msg='退出成功')
     else:
-        user = User.verify_user_token(email_or_token)
-        if not user:
-            return False
-    g.user = user
-    return True
+        return jsonify(re_code=RET.NODATA, msg='退出失败')
 
 
-@auth.verify_password
-def unauthorized():
-    return make_response(jsonify({'error': 'Unauthorized access'}), 401)
+@api.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    identity = get_jwt_identity()
+    access_token = create_access_token(identity=identity)
+    return jsonify(access_token=access_token)
 
 
-@api.route('/')
-@auth.login_required()
-def get_resource():
-    return jsonify({'data': 'Hello, %s!' % g.user.email})
+@api.route('/protected', methods=['POST'])
+@jwt_required()
+def protected():
+    """
+    logout
+    :return:
+    """
+    current_user_phone = get_jwt_identity()
+    if User.query.filter_by(phone=current_user_phone):
+        return jsonify(msg='身份认证成功')
+    else:
+        return jsonify(msg='身份认证失败')
+

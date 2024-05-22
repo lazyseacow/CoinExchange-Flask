@@ -2,6 +2,7 @@ from app import create_app, db
 from app import models
 from flask_script import Manager, Shell
 from flask_migrate import Migrate, MigrateCommand
+from flask_migrate import upgrade
 
 app = create_app()
 manager = Manager(app)
@@ -27,8 +28,6 @@ def deploy():
     """
     部署命令
     """
-    from flask_migrate import upgrade
-    # sig = signature(upgrade)
     upgrade()
 
 

@@ -1,6 +1,6 @@
 import random
 import re
-from flask import current_app, jsonify, request, Flask
+from flask import current_app, jsonify, request
 from app import redis_conn
 from app.models import User
 from app.utils.response_code import RET

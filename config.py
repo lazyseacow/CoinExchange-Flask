@@ -7,7 +7,7 @@ class BaseConfig:
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     # 是否开启跟踪
     SQLALCHEMY_TRACK_MODIFICATIONS = True
-    SECRET_KEY = "hello"
+    JWT_SECRET_KEY = "h1f56j19im1k61wa7p3r0"
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@127.0.0.1:3306/coinexchange'
 

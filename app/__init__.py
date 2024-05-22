@@ -1,14 +1,15 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 
 import redis
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail
 
-from config import APP_ENV, config
+from config import APP_ENV, config, BaseConfig
 
 db = SQLAlchemy()
 mail = Mail()
@@ -26,7 +27,7 @@ def setupLogging(level):
     file_log_handler = RotatingFileHandler(f"logs/{datetime.now().strftime('%Y-%m-%d')}.log", maxBytes=1024 * 1024 * 100,
                                            backupCount=10)
     # 创建日志记录的格式                 日志等级    输入日志信息的文件名 行数    日志信息
-    formatter = logging.Formatter('%(levelname)s %(filename)s:%(lineno)d %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s %(filename)s:%(lineno)d\n %(message)s')
     # 为刚创建的日志记录器设置日志记录格式
     file_log_handler.setFormatter(formatter)
     # 为全局添加日志记录器
@@ -42,6 +43,11 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object(config[APP_ENV])
+    app.config['JWT_SECRET_KEY'] = BaseConfig.JWT_SECRET_KEY
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+
+    jwt = JWTManager(app)
 
     CORS(app, resources=r'/*')
 
