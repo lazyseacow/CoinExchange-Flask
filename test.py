@@ -11,8 +11,14 @@ third_party_connections = {}
 
 
 async def handle_client(websocket):
-    connected_clients.add(websocket)
     try:
+        # token = await websocket.recv()
+        # if not await validate_token(token):
+        #     await websocket.close(reason="authentication failed")
+        #     return
+
+        connected_clients.add(websocket)
+
         async for message in websocket:
             client_last_active[websocket] = datetime.now()
             data = json.loads(message)
@@ -28,20 +34,26 @@ async def handle_client(websocket):
     except websockets.exceptions.ConnectionClosedError:
         print("WebSocket connection closed with error.")
     finally:
-        connected_clients.remove(websocket)
-        client_last_active.pop(websocket, None)
-        await cleanup(websocket)
+        if websocket in connected_clients:
+            connected_clients.remove(websocket)
+            client_last_active.pop(websocket, None)
+            await cleanup(websocket)
 
 
 async def check_inactive_clients():
     while True:
         now = datetime.now()
-        to_close = [ws for ws, last_active in client_last_active.items() if now - last_active > timedelta(minutes=3)]
-        for ws in to_close:
-            await ws.close(reason='Heartbeat timeout')
-            connected_clients.remove(ws)
-            client_last_active.pop(ws, None)
-        await asyncio.sleep(30)  # 每30秒检查一次
+        inactive_clients = [ws for ws, last_active in client_last_active.items()
+                            if now - last_active > timedelta(seconds=10)]
+        for ws in inactive_clients:
+            if ws in connected_clients:
+                print("Closing inactive connection.")
+                await ws.close(reason='Heartbeat timeout')
+                connected_clients.remove(ws)
+                client_last_active.pop(ws, None)
+                await cleanup(ws)
+        await asyncio.sleep(5)  # 检查间隔
+
 
 
 async def handle_subscribe(client_websocket, data):
@@ -79,10 +91,11 @@ async def cleanup(websocket):
         del third_party_connections[websocket]
 
 
-# Start the WebSocket server
-# async def main():
-#     async with websockets.serve(handle_client, 'localhost', 8888):
-#         await asyncio.Future()  # run forever
+async def validate_token(token):
+    # 这里添加您的认证逻辑，例如解码 JWT 或检查数据库
+    # 返回 True 如果 token 有效，否则返回 False
+    return token == "YOUR_SECRET_TOKEN"
+
 
 async def main():
     server = await websockets.serve(handle_client, 'localhost', 8888)  # 正确启动WebSocket服务
