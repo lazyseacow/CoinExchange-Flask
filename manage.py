@@ -1,3 +1,6 @@
+import asyncio
+import threading
+
 from app import create_app, db
 from app import models
 from flask_script import Manager, Shell
@@ -23,7 +26,7 @@ manager.add_command('shell', Shell(make_context=make_shell_context))
 manager.add_command('db', MigrateCommand)
 
 
-@app.cli.command()
+@app.cli.command
 def deploy():
     """
     部署命令

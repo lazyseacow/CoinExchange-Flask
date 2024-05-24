@@ -58,7 +58,7 @@ def create_app():
     redis_conn = redis.StrictRedis(host=config[APP_ENV].REDIS_HOST, port=config[APP_ENV].REDIS_PORT)
 
     db.init_app(app)
-    mail.init_app(app)
+    # mail.init_app(app)
 
     # 注册api_v1_0 蓝图
     from app.api import api
