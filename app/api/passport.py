@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from flask import current_app, jsonify, request
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token, \
+    get_jwt
 from flask_httpauth import HTTPBasicAuth
 from app import db
 from app.api import api
@@ -91,12 +92,16 @@ def logout():
         return jsonify(re_code=RET.NODATA, msg='退出失败')
 
 
-@api.route("/refresh", methods=["POST"])
+@api.route("/token/refresh", methods=["POST"])
 @jwt_required(refresh=True)
 def refresh():
+    # 检查令牌是否过期
+    current_token = get_jwt()
+    if current_token['exp'] < datetime.now().timestamp():
+        return jsonify(re_code=RET.SESSIONERR, msg='token已过期，请重新登录')
     identity = get_jwt_identity()
     access_token = create_access_token(identity=identity)
-    return jsonify(access_token=access_token)
+    return jsonify(re_code=RET.OK, msg='刷新成功', access_token=access_token)
 
 
 @api.route('/protected', methods=['POST'])
