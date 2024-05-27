@@ -160,8 +160,8 @@ websocket ws://192.168.1.10:8888
       K线 Stream 逐秒推送所请求的K线种类(最新一根K线)的更新。  
       **Stream名称：** `<symbol>@kline_<interval>`  
       **更新速度：** `1s`1000ms，其他间隔2000ms  
-      **K线图间隔参数：** 1s 1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M
-      **payload：**
+      **K线图间隔参数：** 1s 1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M  
+      **payload：**  
       ```
       {
           "e": "kline",     // 事件类型
@@ -192,7 +192,7 @@ websocket ws://192.168.1.10:8888
     按 Symbol 刷新的最近24小时精简 ticker 信息  
     **Stream 名称:** `<symbol>@miniTicker`  
     **更新速度：** 实时  
-    **payload:**
+    **payload:**  
     ```
     {
         "e": "24hrMiniTicker",  // 事件类型
@@ -208,9 +208,9 @@ websocket ws://192.168.1.10:8888
     ```
   * ### 全市场所有Symbol的精简Tricker
     同上，只是推送所有交易对，需要注意的是，只有更新的 ticker 才会推送  
-    ** Stream 名称:** `!miniTicker@arr`  
-    **更新速度：** 1000ms
-    **payload:**
+    **Stream 名称:** `!miniTicker@arr`  
+    **更新速度：** 1000ms  
+    **payload:**  
     ```
     [
         {
@@ -219,10 +219,10 @@ websocket ws://192.168.1.10:8888
     ]
     ```
   * ### 按 Symbol 的完整Tricker
-    每秒推送单个交易对的过去24小时滚动窗口标签统计信息
-    **Stream 名称:** `<symbol>@ticker`
-    **更新速度：** 1000ms
-    **payload:**
+    每秒推送单个交易对的过去24小时滚动窗口标签统计信息  
+    **Stream 名称:** `<symbol>@ticker`  
+    **更新速度：** 1000ms  
+    **payload：**  
     ```
     {
         "e": "24hrTicker", // 事件类型
@@ -251,7 +251,7 @@ websocket ws://192.168.1.10:8888
     }
     ```
   * ### 全市场所有交易对的完整Ticker
-    推送全市场所有交易对刷新的24小时完整 tricker 信息，需要注意的是，没有更新的 ticker 不会推送  
+    推送全市场所有交易对刷新的24小时完整 tricker 信息，需要注意的是，没有更新的 ticker 不会推送   
     **Stream 名称:** `!ticker@arr`  
     **更新速度：** 1000ms  
     **payload:**
