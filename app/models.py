@@ -17,19 +17,20 @@ class User(db.Model):
     nickname = db.Column(db.String(255))
     email = db.Column(db.String(255), index=True)
     phone = db.Column(db.String(255), unique=True, index=True)
-    password_hash = db.Column(db.String(256))
-    join_time = db.Column(db.DateTime, default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    last_seen = db.Column(db.DateTime, default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    _password_hash = db.Column(db.String(256))
+    join_time = db.Column(db.DateTime, default=datetime.now())
+    last_seen = db.Column(db.DateTime, default=datetime.now())
 
     @property
     def password(self):
         raise AttributeError('密码不可访问')
 
-    def set_password_hash(self, password):
+    @ password.setter
+    def password(self, password):
         """
         生成hash密码
         """
-        return generate_password_hash(password)
+        self._password_hash = generate_password_hash(password)
 
     def verify_password(self, password):
         """
@@ -37,7 +38,9 @@ class User(db.Model):
         :param password:
         :return: 验证成功返回True，失败返回False
         """
-        return check_password_hash(self.password_hash, password)
+        if self._password_hash is None:
+            return False
+        return check_password_hash(self._password_hash, password)
 
     def update_last_seen(self):
         self.last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
