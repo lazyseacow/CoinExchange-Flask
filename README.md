@@ -1,5 +1,14 @@
 # CoinExchange-Flask
 
+## 注意
+- **安装依赖说明**  
+    flask_script==2.0.6与Flask==3.0.3存在不兼容问题，需要修改相关配置  
+- 修改方式
+1. ModuleNotFoundError: No module named 'flask._compat'  
+解决方案：`flask_script/__init__.py`文件 15行 `from flask._compat import text_type` 书写有误。修改为`from flask_script._compat import text_type`
+2. ImportError: cannot import name '_request_ctx_stack' from 'flask' (D:\pyproject\CoinExchange-Flask\venv\Lib\site-packages\flask\__init__.py)
+解决方案：将`flask_script/commands.py`文件 13行 `from flask import _request_ctx_stack` 书写有误。将其注释即可
+
 ## 撮合交易引擎
 - **接受订单**  
 撮合引擎受限需要接受来自市场参与者的买卖订单，这些订单包含了价格、数量、订单类型（如市价单、限价单等）、订单ID、订单状态、订单时间戳等信息。
