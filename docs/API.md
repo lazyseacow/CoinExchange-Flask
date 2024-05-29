@@ -241,14 +241,14 @@ Authorization: Bearer <access_token>
 GET /klines
 ```
 - ### 请求参数
-|    参数     |   类型   | 是否必须 |          参数说明           |
-|:---------:|:------:|:----:|:-----------------------:|
-|  symbol   | string |  是   |           币对            | 
-| interval  | string |  是   |          k线间隔           |
-|   limit   |  int   |  否   |    数量（默认500，最大1000）     |
-| startTime |  int   |  否   | 开始时间（默认当前时间90天前的纳秒级时间戳） |
-|  endTime  |  int   |  否   |    结束时间（默认当前纳秒级时间戳）     |
-| timeZone  | string |  否   |      时区（默认0：UTC，1）      |
+|    参数     |   类型   | 是否必须 |            参数说明             |
+|:---------:|:------:|:----:|:---------------------------:|
+|  symbol   | string |  是   |             币对              | 
+| interval  | string |  是   |            k线间隔             |
+|   limit   |  int   |  否   |      数量（默认500，最大1000）       |
+| startTime |  int   |  否   | 开始时间（默认当前时间90天前的毫秒级unix时间戳） |
+|  endTime  |  int   |  否   |    结束时间（默认当前毫秒级unix时间戳）     |
+| timeZone  | string |  否   |        时区（默认0：UTC，1）        |
 
 - ### 响应参数
 |   参数    |  类型   | 是否必须 | 参数说明 |
