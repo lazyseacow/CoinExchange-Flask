@@ -13,12 +13,12 @@ auth = HTTPBasicAuth()
 
 @api.route('/register', methods=['POST'])
 def Register():
-    nickname = request.json.get('nickname')
+    username = request.json.get('username')
     email = request.json.get('email')
     phone = request.json.get('phone')
     password = request.json.get('password')
 
-    if not all([nickname, email, phone, password]):
+    if not all([username, email, phone, password]):
         return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
@@ -27,7 +27,7 @@ def Register():
     if phone_exist:
         return jsonify(re_code=RET.DATAEXIST, msg='手机号已注册')
 
-    user.nickname = nickname
+    user.username = username
     user.email = email
     user.phone = phone
     user.password = password
@@ -72,6 +72,7 @@ def Login():
         return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
 
     user.update_last_seen()
+    db.session.commit()
     access_token = create_access_token(identity=user.phone, expires_delta=timedelta(days=3), fresh=True)
     refresh_token = create_refresh_token(identity=user.phone)
     return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token, refresh_token=refresh_token)
