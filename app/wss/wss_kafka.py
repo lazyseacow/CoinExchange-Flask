@@ -49,8 +49,9 @@ async def handle_client(websocket, path):
         async for message in websocket:
             message = json.loads(message)
             action = message['action']
-            subscription_types = message['type']
-            params_list = subscription_types['params']
+            # subscription_types = message['type']
+            # params_list = subscription_types['params']
+            params_list = message['params']
 
             if action == 'true':
                 async with subscriptions_lock:
