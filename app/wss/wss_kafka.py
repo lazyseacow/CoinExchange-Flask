@@ -1,6 +1,8 @@
 # -*- coding: gbk -*-
 import asyncio
 import json
+import logging
+
 import websockets
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 
@@ -41,6 +43,8 @@ async def handle_client(websocket, path):
     global clients, binance_ws
     client_id = id(websocket)
     clients[client_id] = websocket
+    # client_ip = websocket.remote_address[0]
+    # client_port = websocket.remote_address[1]
     try:
         async for message in websocket:
             message = json.loads(message)
@@ -60,7 +64,7 @@ async def handle_client(websocket, path):
                                     "params": [params],
                                     "id": client_id
                                 }))
-                            subscriptions[params].add(websocket)
+                        subscriptions[params].add(websocket)
 
             # action为false时，仅用作心跳检测，不进行取消订阅处理
     finally:
