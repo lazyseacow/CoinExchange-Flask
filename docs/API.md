@@ -46,6 +46,7 @@ POST /register
 - ### 请求参数
 |    参数    | 参数说明 |   类型   | 是否必须 |
 |:--------:|:----:|:------:|:----:|
+| username | 用户名  | string |  是   |
 |  email   |  邮箱  | string |  是   |
 |  phone   | 手机号  | string |  是   |
 | password |  密码  | string |  是   |
@@ -53,6 +54,7 @@ POST /register
 - ### 请求示例
 ```
 {
+    "username": "YourName",
     "email": "YourEmail@gmail.com",
     "phone": 12345678910,
     "password": "123456"
