@@ -7,30 +7,17 @@ websocket ws://192.168.1.10:8888
 ```
 {
     "action": "true",
-    "type": {
-        "method": "SUBSCRIBE",
-        "params": [
-            "!miniTicker@arr",
-            "!ticker@arr"
-        ],
-        "id": 1
-    }
+    "params": [
+        "btcusdt@kline_1s",
+        "btcusdt@depth"
+    ]
 }
 ```
 - ## 参数说明
 |   字段   |   类型   | 是否必须 |            说明             |
 |:------:|:------:|------|:-------------------------:|
-|  type  | string | 是    | true（发送消息）/false（关闭第三方连接） |
-| action | object | 是    |     获取不同数据只需要修改action     |
-
-
-- ## action参数详细说明
-|   字段   |   类型   | 是否必须 |       说明        |
-|:------:|:------:|------|:---------------:|
-| method | string | 是    | SUBSCRIBE（订阅消息） |
-| params | array  | 是    | 订阅的频道，多个频道用逗号分隔 |
-|   id   |  int   | 是    | 请求id，用于区分不同的请求  |
-
+| action | string | 是    | true（发送消息）/false（关闭第三方连接） |
+| params | array  | 是    |       订阅内容，可一次性填写多条       |
 
 - ## 返回格式
 ```
