@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import UniqueConstraint
 from cryptography import fernet
+from sqlalchemy.orm import backref
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from . import db
@@ -16,11 +17,25 @@ class User(db.Model):
 
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(255))
-    email = db.Column(db.String(255), index=True)
+    email = db.Column(db.String(255), unique=True, index=True)
     phone = db.Column(db.String(255), unique=True, index=True)
     _password_hash = db.Column(db.String(256))
     join_time = db.Column(db.DateTime, default=datetime.now())
     last_seen = db.Column(db.DateTime, default=datetime.now())
+
+    user_authentication = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
+    user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
+    wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
+
+    @classmethod
+    def log_user_info(cls, username, email, phone, _password_hash, join_time, last_seen):
+        user = cls(username=username, email=email, phone=phone, _password_hash=_password_hash, join_time=join_time, last_seen=last_seen)
+        user.save()
+
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
 
     @property
     def password(self):
@@ -44,12 +59,11 @@ class User(db.Model):
         return check_password_hash(self._password_hash, password)
 
     def update_last_seen(self):
-        self.last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.last_seen = datetime.now()
         db.session.add(self)
 
     def to_json(self):
         return {
-            'user_id': self.id,
             'phone': self.phone,
             'email': self.email
         }
@@ -65,15 +79,25 @@ class UserAuthentication(db.Model):
     __tablename__ = 'user_authentication'
 
     auth_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    auth_type = db.Column(db.String(255))
-    auth_key = db.Column(db.String(255))
-    enabled = db.Column(db.Boolean, default=True)
+    auth_type = db.Column(db.Enum('email', 'phone'))
+    auth_status = db.Column(db.Enum('success', 'failed'))
+    auth_account = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.now())
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    @classmethod
+    def log_auth(cls, user_id, auth_type, auth_status, auth_account):
+        auth = cls(user_id=user_id, auth_type=auth_type, auth_status=auth_status, auth_account=auth_account)
+        auth.save()
+
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'auth_id': self.auth_id,
             'auth_type': self.auth_type,
             'auth_key': self.auth_key,
             'enabled': self.enabled
@@ -87,14 +111,22 @@ class UserSecuritySettings(db.Model):
     __tablename__ = 'user_security_settings'
 
     setting_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    setting_type = db.Column(db.Enum('ip_whitelist', 'transaction_limit'))
+    setting_type = db.Column(db.Enum('ip_whitelist', 'transaction_limit', 'two_factor_authentication', 'account lockout policy'))
     setting_value = db.Column(db.String(255))
+    enabled = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now())
+    UniqueConstraint(setting_type, setting_value)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'setting_id': self.setting_id,
             'setting_type': self.setting_type,
             'setting_value': self.setting_value
         }
@@ -113,9 +145,18 @@ class UserActivityLogs(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    @classmethod
+    def log_activity(cls, user_id, activity_type, activity_details, activity_time):
+        log = cls(user_id=user_id, activity_type=activity_type, activity_details=activity_details, activity_time=activity_time)
+        log.save()
+
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'log_id': self.log_id,
             'activity_type': self.activity_type,
             'activity_time': self.activity_time,
             'activity_details': self.activity_details
@@ -138,9 +179,13 @@ class APIKeys(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'key_id': self.key_id,
             'api_key': self.api_key,
             'api_secret': self.api_secret,
             'permissions': self.permissions,
@@ -162,9 +207,18 @@ class Wallet(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    @classmethod
+    def log_transaction(cls, user_id, symbol, balance, frozen_balance):
+        transaction = cls(user_id=user_id, symbol=symbol, balance=balance, frozen_balance=frozen_balance)
+        transaction.save()
+
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'wallet_id': self.wallet_id,
             'symbol': self.symbol,
             'balance': self.balance,
             'frozen_balance': self.frozen_balance
@@ -185,9 +239,13 @@ class WalletOperations(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'operation_id': self.operation_id,
             'operation_type': self.operation_type,
             'operation_time': self.operation_time,
             'amount': self.amount,
@@ -211,9 +269,13 @@ class WalletEventsLogs(db.Model):
 
     wallet_id = db.Column(db.Integer, db.ForeignKey('wallet.wallet_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'event_id': self.event_id,
             'event_type': self.event_type,
             'event_time': self.event_time,
             'description': self.description,
@@ -235,9 +297,13 @@ class SecurityPolicies(db.Model):
 
     wallet_id = db.Column(db.Integer, db.ForeignKey('wallet.wallet_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'policy_id': self.policy_id,
             'policy_type': self.policy_type,
             'policy_details': self.policy_details,
             'enabled': self.enabled,
@@ -263,9 +329,13 @@ class DepositsWithdrawals(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'record_id': self.record_id,
             'transaction_type': self.transaction_type,
             'symbol': self.symbol,
             'amount': self.amount,
@@ -293,9 +363,13 @@ class Orders(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'order_id': self.order_id,
             'order_type': self.order_type,
             'symbol': self.symbol,
             'price': self.price,
@@ -319,6 +393,20 @@ class Transactions(db.Model):
     price = db.Column(db.DECIMAL(18, 8))
     create_at = db.Column(db.DateTime, default=datetime.now())
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
+    def to_json(self):
+        return {
+            'buyer_order_id': self.buyer_order_id,
+            'seller_oeder_id': self.seller_oeder_id,
+            'amout': self.amout,
+            'price': self.price,
+            'create_at': self.create_at
+        }
+
 
 # 用户后台管理模块
 class Roles(db.Model):
@@ -331,9 +419,13 @@ class Roles(db.Model):
     role_name = db.Column(db.String(255))
     permissions = db.Column(db.Text())  # 以JSON格式存储
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
     def to_json(self):
         return {
-            'role_id': self.role_id,
             'role_name': self.role_name,
             'permissions': self.permissions
         }
@@ -349,6 +441,17 @@ class UserRoles(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
     rold_id = db.Column(db.Integer, db.ForeignKey('roles.role_id'), nullable=False)
 
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
+    def to_json(self):
+        return {
+            'user_id': self.user_id,
+            'rold_id': self.rold_id
+        }
+
 
 class Companies(db.Model):
     """
@@ -361,3 +464,16 @@ class Companies(db.Model):
     audit_status = db.Column(db.Enum('pending', 'approved', 'rejected'))
     audit_detail = db.Column(db.Text())     # 以JSON格式存储
     create_at = db.Column(db.DateTime, default=datetime.now())
+
+    def save(self):
+        """保存数据"""
+        db.session.add(self)
+        db.session.commit()
+
+    def to_json(self):
+        return {
+            'audit_type': self.audit_type,
+            'audit_status': self.audit_status,
+            'audit_detail': self.audit_detail,
+            'create_at': self.create_at
+        }

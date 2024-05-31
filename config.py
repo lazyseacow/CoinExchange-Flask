@@ -58,3 +58,6 @@ config = {
     "testing": TestingConfig,
     "development": DevelopmentConfig,
 }
+
+# 数字货币支持种类
+currency_list = ['BTC/USDT', 'ETH/USDT', 'EOS/USDT', 'ETC/USDT', 'BT/USDT', 'GITP/USDT', 'LINK/USDT', 'TRX/USDT', 'LTC/USDT', 'BSV/USDT', 'BCH/USDT', 'HT/USDT', 'DOGE/USDT', 'SHIB/USDT']

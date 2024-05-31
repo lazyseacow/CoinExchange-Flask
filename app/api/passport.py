@@ -1,11 +1,13 @@
+import re
 from datetime import datetime, timedelta
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
 from flask_httpauth import HTTPBasicAuth
 from app import db
 from app.api import api
-from app.models import User
+from app.models import *
 from app.utils.response_code import RET
+from config import currency_list
 
 
 auth = HTTPBasicAuth()
@@ -22,10 +24,12 @@ def Register():
         return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
+    # wallet = Wallet()
     phone_exist = user.query.filter_by(phone=phone).first()
+    email_exist = user.query.filter_by(email=email).first()
 
-    if phone_exist:
-        return jsonify(re_code=RET.DATAEXIST, msg='手机号已注册')
+    if phone_exist or email_exist:
+        return jsonify(re_code=RET.DATAEXIST, msg='手机号码或邮箱已注册')
 
     user.username = username
     user.email = email
@@ -33,10 +37,16 @@ def Register():
     user.password = password
     user.join_time = datetime.now()
     user.last_seen = datetime.now()
+    db.session.add(user)
+    db.session.flush()
 
     try:
-        db.session.add(user)
+        user.save()
+        for currency in currency_list:
+            wallet = Wallet(user_id=user.user_id, symbol=currency, balance=0.0, frozen_balance=0.0)
+            db.session.add(wallet)
         db.session.commit()
+
     except Exception as e:
         current_app.logger.debug(e)
         db.session.rollback()
@@ -53,28 +63,44 @@ def Login():
     :return: 返回响应，保持登录状态
     """
 
-    phone = request.json.get('phone')
+    account = request.json.get('account')
     password = request.json.get('password')
-
-    if not all([phone, password]):
+    user = User()
+    user_auth = UserAuthentication()
+    user_activity_logs = UserActivityLogs()
+    auth_type = ''
+    auth_status = 'success'
+    if not all([account, password]):
         return jsonify(re_code=RET.PARAMERR, msg='账号或密码不能为空')
 
     try:
-        user = User.query.filter_by(phone=phone).first()
+        if re.match(r'\d{11}$', account):
+            auth_type = 'phone'
+            user = User.query.filter_by(phone=account).first()
+        elif re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', account):
+            auth_type = 'email'
+            user = User.query.filter_by(email=account).first()
+        else:
+            return jsonify(re_code=RET.PARAMERR, msg='账户名格式错误')
+        if not user:
+            return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+        if not user.verify_password(password):
+            auth_status = 'failed'
+            user_auth.log_auth(user.user_id, auth_type, auth_status, account)
+            return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
+
+        user.update_last_seen()
+        db.session.flush()
+        user_auth.log_auth(user.user_id, auth_type, auth_status, account)
+        user_activity_logs.log_activity(user.user_id, 'login', request.remote_addr, datetime.now())
+
     except Exception as e:
         current_app.logger.debug(e)
         return jsonify(re_code=RET.DBERR, msg='查询用户失败')
 
-    if not user:
-        return jsonify(re_code=RET.NODATA, msg='用户不存在', user=user)
-
-    if not user.verify_password(password):
-        return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
-
-    user.update_last_seen()
-    db.session.commit()
-    access_token = create_access_token(identity=user.phone, expires_delta=timedelta(days=3), fresh=True)
-    refresh_token = create_refresh_token(identity=user.phone)
+    access_token = create_access_token(identity=user.user_id, expires_delta=timedelta(days=3), fresh=True)
+    refresh_token = create_refresh_token(identity=user.user_id)
     return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token, refresh_token=refresh_token)
 
 
@@ -85,8 +111,8 @@ def Logout():
     用户在登录状态点击退出登录时，需要清除用户的登录状态
     :return:
     """
-    current_user_phone = get_jwt_identity()
-    if User.query.filter_by(phone=current_user_phone):
+    current_user_id = get_jwt_identity()
+    if User.query.filter_by(user_id=current_user_id):
         return jsonify(re_code=RET.OK, msg='退出成功')
     else:
         return jsonify(re_code=RET.NODATA, msg='退出失败')
@@ -111,10 +137,10 @@ def ModifyPassowrd():
     修改用户密码
     :return:
     """
-    current_user_phone = get_jwt_identity()
+    current_user_id = get_jwt_identity()
     current_password = request.json.get('current_password')
     new_password = request.json.get('new_password')
-    user = User().query.filter_by(phone=current_user_phone).first()
+    user = User().query.filter_by(user_id=current_user_id).first()
     if not user:
         return jsonify(re_code=RET.USERERR, msg='找不到该用户')
 
@@ -125,17 +151,17 @@ def ModifyPassowrd():
         return jsonify(re_code=RET.DATAERR, msg='新密码与旧密码相同')
 
     user.password = new_password
-    db.session.commit()
+    user.save()
     return jsonify(re_code=RET.OK, msg='密码修改成功')
 
 
 @api.route('/resetpassowrd', methods=['POST'])
 @jwt_required()
 def ResetPassword():
-    current_user_phone = get_jwt_identity()
+    current_user_id = get_jwt_identity()
     new_password = request.json.get('new_password')
 
-    user = User().query.filter_by(phone=current_user_phone).first()
+    user = User().query.filter_by(user_id=current_user_id).first()
 
     if not user:
         return jsonify(re_code=RET.USERERR, msg='找不到该用户')
@@ -145,9 +171,9 @@ def ResetPassword():
 
     try:
         # db.session.add(user)
-        db.session.commit()
+        user.save()
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
         current_app.logger.debug(e)
-        db.session.rollback()
+        user.rollback()
         return jsonify(re_code=RET.OK, msg='密码修改失败')
