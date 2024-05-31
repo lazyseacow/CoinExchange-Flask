@@ -6,7 +6,7 @@
 | 字段名       | 类型           | 说明         |
 |-----------|--------------|------------|
 | user_id   | int(11)      | 用户ID，主键，自增 |
-| username  | varchar(255) | 用户名，唯一索引   |
+| username  | varchar(255) | 用户名        |
 | password  | varchar(255) | 密码，加密存储    |
 | email     | varchar(255) | 邮箱，唯一索引    |
 | phone     | varchar(255) | 手机号码，唯一索引  |
@@ -15,13 +15,14 @@
 
 - 用户身份验证表（user_authentication）：用来存储用户的登录方法和相关的的安全设置
 
-| 字段名       | 类型           | 说明                   |
-|-----------|--------------|----------------------|
-| auth_id   | int(11)      | 主键，自增                |
-| user_id   | int(11)      | 外键，关联user表           |
-| auth_type | varchar(255) | 登录方式，如：邮箱、手机号、第三方登录等 |
-| auth_key  | varchar(255) | 用于生成一次性密码或其他认证数据的密钥  |
-| enabled   | tinyint(1)   | 指示是否启用该认证方法          |
+| 字段名          | 类型                        | 说明                     |
+|--------------|---------------------------|------------------------|
+| auth_id      | int(11)                   | 主键，自增                  |
+| user_id      | int(11)                   | 外键，关联user表             |
+| auth_status  | enum('success', 'failed') | 认证状态，如：成功、失败           |
+| auth_type    | varchar(255)              | 登录方式，如：邮箱、手机号、第三方登录等   |
+| auth_account | varchar(255)              | 登录账号，如：邮箱、手机号、第三方登录账号等 |
+| created_at   | datetime                  | 认证时间                   |
 
 - 用户安全设置表（user_security_settings）：用于存储用户的安全相关设置，比如IP白名单、交易限额
 
@@ -31,6 +32,9 @@
 | user_id       | int(11)                                   | 外键，关联user表          |
 | setting_type  | enum('IP_whitelist', 'transaction_limit') | 设置类型，如：IP白名单、交易限额等  |
 | setting_value | varchar(255)                              | 设置值，如：IP白名单列表、交易限额等 |
+| enabled       | tinyint(1)                                | 是否启用，0表示禁用，1表示启用    |
+| created_at    | datetime                                  | 设置时间                |
+| updated_at    | datetime                                  | 更新时间                |
 
 - 用户活动日志表（user_activity_logs）：用于记录用户的关键活动和交易，有助于审计和安全监控
 

@@ -14,10 +14,10 @@ websocket ws://192.168.1.10:8888
 }
 ```
 - ## 参数说明
-|   字段   |   类型   | 是否必须 |            说明             |
-|:------:|:------:|------|:-------------------------:|
-| action | string | 是    | true（发送消息）/false（关闭第三方连接） |
-| params | array  | 是    |       订阅内容，可一次性填写多条       |
+|   字段   |   类型   | 是否必须 |        说明        |
+|:------:|:------:|------|:----------------:|
+| action | string | 是    | true/false（是否订阅） |
+| params | array  | 是    |  订阅内容（可一次性填写多条）  |
 
 - ## 返回格式
 ```
@@ -119,7 +119,6 @@ websocket ws://192.168.1.10:8888
 | {"code": 2, "msg": "Invalid request: missing field method at line 1 column 73"}                                                                                             | 数据未提供`method`                           |   
 | {"code":3,"msg":"Invalid JSON: expected value at line %s column %s"}                                                                                                        | JSON 语法有误.                              |
 ------------------------------------------------------------
-
 
 
 - ## 可选 params
