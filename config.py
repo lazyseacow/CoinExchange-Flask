@@ -63,3 +63,4 @@ config = {
 currency_list = ['USDT', 'BTC', 'ETH', 'EOS', 'ETC', 'BCH', 'BSV', 'BT', 'DASH', 'LTC', 'ZEC', 'TRX', 'ADA', 'XMR',
                  'DCR', 'IOTA', 'LINK', 'ATOM', 'WTC', 'NEO', 'BHD', 'XTZ', 'DOT', 'FIL', 'UNI', 'YFI', 'SUSHI',
                  'XRP', 'USDC', 'DOGE', 'SHIB', 'GITP']
+
