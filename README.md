@@ -2,14 +2,14 @@
 
 ## 注意
 - **安装依赖说明**  
-    flask_script==2.0.6与Flask==3.0.3存在不兼容问题，需要修改相关配置  
+    `flask_script==2.0.6`与`Flask==3.0.3`存在不兼容问题，需要修改相关配置  
 - 修改方式
 1. ModuleNotFoundError: No module named 'flask._compat'  
 解决方案：`flask_script/__init__.py`文件 15行 `from flask._compat import text_type` 书写有误。修改为`from flask_script._compat import text_type`
-2. ImportError: cannot import name '_request_ctx_stack' from 'flask' (D:\pyproject\CoinExchange-Flask\venv\Lib\site-packages\flask\__init__.py)
+2. ImportError: cannot import name '_request_ctx_stack' from 'flask' (D:\pyproject\CoinExchange-Flask\venv\Lib\site-packages\flask\__init__.py)  
 解决方案：将`flask_script/commands.py`文件 13行 `from flask import _request_ctx_stack` 书写有误。将其注释即可
 
-## 撮合交易引擎
+## 撮合交易引擎（暂不具备自动化交易）
 - **接受订单**  
 撮合引擎受限需要接受来自市场参与者的买卖订单，这些订单包含了价格、数量、订单类型（如市价单、限价单等）、订单ID、订单状态、订单时间戳等信息。
 - **订单验证**  
@@ -26,8 +26,6 @@
 撮合引擎需要处理订单的撤销和修改。订单的撤销需要将订单从订单簿中移除，修改需要更新订单的价格、数量等。
 - **数据广播**  
 撮合引擎需要将撮合结果广播给所有客户端，包括撮合引擎本身、交易撮合服务、行情服务、用户信息服务等。
-
-## 撮合引擎
 
 ## 法币交易服务
 

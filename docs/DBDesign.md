@@ -120,28 +120,30 @@
 
 - 订单表（orders）：用于存储用户提交的买卖订单交易
 
-| 字段名        | 类型                                | 说明                     |
-|------------|-----------------------------------|------------------------|
-| order_id   | int(11)                           | 主键，自增                  |
-| user_id    | int(11)                           | 外键，关联user表             |
-| order_type | enum('buy','sell')                | 订单类型，如：买入、卖出           |
-| symbol     | varchar(255)                      | 交易对，如：BTC/CNY、ETH/USD等 |
-| status     | enum('open','filled','cancelled') | 订单状态，如：打开、已填充、已取消      |
-| price      | decimal(18,8)                     | 订单价格，精确到小数点后8位         |
-| quantity   | decimal(18,8)                     | 订单数量，精确到小数点后8位         |
-| created_at | datetime                          | 订单创建时间                 |
-| updated_at | datetime                          | 订单更新时间                 |
+| 字段名            | 类型                                | 说明                     |
+|----------------|-----------------------------------|------------------------|
+| order_id       | int(11)                           | 主键，自增                  |
+| user_id        | int(11)                           | 外键，关联user表             |
+| order_type     | enum('buy','sell')                | 订单类型，如：买入、卖出           |
+| symbol         | varchar(255)                      | 交易对，如：BTC/CNY、ETH/USD等 |
+| status         | enum('open','filled','cancelled') | 订单状态，如：打开、已填充、已取消      |
+| price          | decimal(18,8)                     | 订单价格，精确到小数点后8位         |
+| executed_price | decimal(18,8)                     | 订单执行价格，精确到小数点后8位       |
+| quantity       | decimal(18,8)                     | 订单数量，精确到小数点后8位         |
+| created_at     | datetime                          | 订单创建时间                 |
+| updated_at     | datetime                          | 订单更新时间                 |
 
 - 交易记录表（transactions）：记录所有完成的交易，包括买卖双方的订单匹配结果
 
-| 字段名             | 类型            | 说明             |
-|-----------------|---------------|----------------|
-| transaction_id  | int(11)       | 主键，自增          |
-| buyer_order_id  | int(11)       | 外键，关联orders表   |
-| seller_order_id | int(11)       | 外键，关联orders表   |
-| amount          | decimal(18,8) | 交易金额，精确到小数点后8位 |
-| price           | decimal(18,8) | 交易价格，精确到小数点后8位 |
-| create_at       | datetime      | 交易时间戳          |
+| 字段名              | 类型            | 说明                  |
+|------------------|---------------|---------------------|
+| transaction_id   | int(11)       | 主键，自增               |
+| transaction_uuid | varchar(255)  | 交易唯一标识符，用于关联第三方支付平台 |
+| buyer_order_id   | int(11)       | 外键，关联orders表        |
+| seller_order_id  | int(11)       | 外键，关联orders表        |
+| amount           | decimal(18,8) | 交易总金额，精确到小数点后8位     |
+| price            | decimal(18,8) | 货币交易价格，精确到小数点后8位    |
+| created_at       | datetime      | 交易时间戳               |
 ### 行情服务
 
 ## 2.用户管理：管理不同级别用户的访问权限
