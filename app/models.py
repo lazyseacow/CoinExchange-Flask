@@ -232,12 +232,18 @@ class WalletOperations(db.Model):
     __tablename__ = 'wallet_operations'
 
     operation_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    symbol = db.Column(db.String(255))
     operation_type = db.Column(db.String(255))
     operation_time = db.Column(db.DateTime, default=datetime.now())
     amount = db.Column(db.DECIMAL(18, 8))
     status = db.Column(db.String(255))
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+
+    @classmethod
+    def log_operation(cls, user_id, symbol, operation_type, amount, status):
+        operation = cls(user_id=user_id, symbol=symbol, operation_type=operation_type, amount=amount, status=status)
+        operation.save()
 
     def save(self):
         """保存数据"""
@@ -352,16 +358,22 @@ class Orders(db.Model):
     """
     __tablename__ = 'orders'
 
-    order_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    order_id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
     order_type = db.Column(db.Enum('buy', 'sell'))
-    symbol = db.Column(db.String(255))
+    symbol = db.Column(db.String(255), index=True)
     price = db.Column(db.DECIMAL(18, 8))
+    executed_price = db.Column(db.DECIMAL(18, 8))
     quantity = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.Enum('open', 'filled', 'partially_filled', 'canceled'))
+    status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'))
     create_at = db.Column(db.DateTime, default=datetime.now())
     update_at = db.Column(db.DateTime, default=datetime.now())
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+
+    @classmethod
+    def log_orders(cls, user_id, order_type, symbol, price, executed_price, quantity):
+        order = cls(user_id=user_id, order_type=order_type, symbol=symbol, price=price, executed_price=executed_price, quantity=quantity)
+        order.save()
 
     def save(self):
         """保存数据"""
@@ -387,11 +399,12 @@ class Transactions(db.Model):
     __tablename__ = 'transactions'
 
     transaction_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    transaction_uuid = db.Column(db.String(255), index=True)
     buyer_order_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
     seller_oeder_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
-    amout = db.Column(db.DECIMAL(18, 8))
+    amount = db.Column(db.DECIMAL(18, 8))
     price = db.Column(db.DECIMAL(18, 8))
-    create_at = db.Column(db.DateTime, default=datetime.now())
+    created_at = db.Column(db.DateTime, default=datetime.now())
 
     def save(self):
         """保存数据"""

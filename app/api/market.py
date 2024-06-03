@@ -1,14 +1,21 @@
 import time
-
-from flask import request, jsonify
+from flask_jwt_extended import jwt_required
+from flask import request, jsonify, current_app
 import requests
-
+from app.api.verify import auth
 from app.api import api
+from app.models import User
 from app.utils.response_code import RET
 
 
 @api.route('/klines', methods=['GET'])
+@jwt_required()
 def get_klines_from_binance():
+    user_id = auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.USERERR, msg='用户不存在')
+
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
     timeZone = request.args.get('timeZone', default=0, type=int)
@@ -29,8 +36,10 @@ def get_klines_from_binance():
     if endTime:
         params['endTime'] = endTime
 
-    response = requests.get(url=binance_klines_url, params=params)
-    if response.status_code == 200:
+    try:
+        response = requests.get(url=binance_klines_url, params=params)
+        response.raise_for_status()
         return jsonify(re_code=RET.OK, data=response.json())
-    else:
+    except requests.RequestException as e:
+        current_app.logger.error(e)
         return jsonify(re_code=RET.THIRDERR, msg='获取数据失败')

@@ -1,13 +1,14 @@
 import re
 from datetime import datetime, timedelta
 from flask import current_app, jsonify, request
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_httpauth import HTTPBasicAuth
 from app import db
 from app.api import api
 from app.models import *
 from app.utils.response_code import RET
 from config import currency_list
+from app.api.verify import auth
 
 
 @api.route('/walletsinfo', methods=['GET'])
@@ -17,7 +18,7 @@ def get_wallets_info():
     获取钱包中所有货币信息
     :return:
     """
-    user_id = get_jwt_identity()
+    user_id = auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')

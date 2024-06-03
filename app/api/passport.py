@@ -8,9 +8,7 @@ from app.api import api
 from app.models import *
 from app.utils.response_code import RET
 from config import currency_list
-
-
-auth = HTTPBasicAuth()
+from app.api.verify import auth
 
 
 @api.route('/register', methods=['POST'])
@@ -111,7 +109,7 @@ def Logout():
     用户在登录状态点击退出登录时，需要清除用户的登录状态
     :return:
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = auth.get_userinfo()
     if User.query.filter_by(user_id=current_user_id):
         return jsonify(re_code=RET.OK, msg='退出成功')
     else:
@@ -137,7 +135,7 @@ def ModifyPassowrd():
     修改用户密码
     :return:
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = auth.get_userinfo()
     current_password = request.json.get('current_password')
     new_password = request.json.get('new_password')
     user = User().query.filter_by(user_id=current_user_id).first()
@@ -158,7 +156,7 @@ def ModifyPassowrd():
 @api.route('/resetpassowrd', methods=['POST'])
 @jwt_required()
 def ResetPassword():
-    current_user_id = get_jwt_identity()
+    current_user_id = auth.get_userinfo()
     new_password = request.json.get('new_password')
 
     user = User().query.filter_by(user_id=current_user_id).first()
