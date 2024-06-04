@@ -60,7 +60,4 @@ config = {
 }
 
 # 数字货币支持种类
-currency_list = ['USDT', 'BTC', 'ETH', 'EOS', 'ETC', 'BCH', 'BSV', 'BT', 'DASH', 'LTC', 'ZEC', 'TRX', 'ADA', 'XMR',
-                 'DCR', 'IOTA', 'LINK', 'ATOM', 'WTC', 'NEO', 'BHD', 'XTZ', 'DOT', 'FIL', 'UNI', 'YFI', 'SUSHI',
-                 'XRP', 'USDC', 'DOGE', 'SHIB', 'GITP']
-
+currency_list = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR", "DASH", "EOS", "LINK", "XLM", "ZEC", "UNI", "DOGE", "QRL", "ZUGA", "XTZ", "IOTA"]

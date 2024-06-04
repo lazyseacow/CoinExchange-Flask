@@ -23,7 +23,7 @@ def get_klines_from_binance():
     startTime = request.args.get('startTime')
     endTime =  request.args.get('endTime')
 
-    binance_klines_url = 'https://api1.binance.com/api/v3/uiKlines'
+    binance_klines_url = 'https://api1.binance.com/api/v3/klines'
     params = {
         'symbol': symbol,
         'interval': interval,
