@@ -61,3 +61,27 @@ config = {
 
 # 数字货币支持种类
 currency_list = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR", "DASH", "EOS", "LINK", "XLM", "ZEC", "UNI", "DOGE", "QRL", "ZUGA", "XTZ", "IOTA"]
+subscribe_trade = {
+    "method": "SUBSCRIBE",
+    "params": [
+        "btcusdt@trade",
+        "ethusdt@trade",
+        "ltcusdt@trade",
+        "etcusdt@trade",
+        "xrpusdt@trade",
+        "bchusdt@trade",
+        "trxusdt@trade",
+        "xmrusdt@trade",
+        "dashusdt@trade",
+        "eosusdt@trade",
+        "linkusdt@trade",
+        "xlmusdt@trade",
+        "zecusdt@trade",
+        "uniusdt@trade",
+        "dogeusdt@trade",
+        "qrlusdt@trade",
+        "zugausdt@trade",
+        "xtzusdt@trade",
+        "iotausdt@trade"
+    ]
+}
