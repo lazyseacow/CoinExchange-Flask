@@ -111,6 +111,8 @@ def Logout():
     """
     current_user_id = auth.get_userinfo()
     if User.query.filter_by(user_id=current_user_id):
+        user_activity_logs = UserActivityLogs()
+        user_activity_logs.log_activity(current_user_id, 'logout', request.remote_addr, datetime.now())
         return jsonify(re_code=RET.OK, msg='退出成功')
     else:
         return jsonify(re_code=RET.NODATA, msg='退出失败')
@@ -125,6 +127,7 @@ def Refresh():
         return jsonify(re_code=RET.SESSIONERR, msg='token已过期，请重新登录')
     identity = get_jwt_identity()
     access_token = create_access_token(identity=identity)
+
     return jsonify(re_code=RET.OK, msg='刷新成功', access_token=access_token)
 
 
@@ -149,8 +152,15 @@ def ModifyPassowrd():
         return jsonify(re_code=RET.DATAERR, msg='新密码与旧密码相同')
 
     user.password = new_password
-    user.save()
-    return jsonify(re_code=RET.OK, msg='密码修改成功')
+    try:
+        db.session.commit()
+        user_activity_logs = UserActivityLogs()
+        user_activity_logs.log_activity(current_user_id, 'modify password', request.remote_addr, datetime.now())
+        return jsonify(re_code=RET.OK, msg='密码修改成功')
+    except Exception as e:
+        current_app.logger.debug(e)
+        db.session.rollback()
+        return jsonify(re_code=RET.DBERR, msg='密码修改失败')
 
 
 @api.route('/resetpassowrd', methods=['POST'])
@@ -167,9 +177,11 @@ def ResetPassword():
     if not user.verify_password(new_password):
         return jsonify(re_code=RET.DATAERR, msg='新密码与旧密码相同')
 
+    user.password = new_password
     try:
-        # db.session.add(user)
-        user.save()
+        user_activity_logs = UserActivityLogs()
+        user_activity_logs.log_activity(current_user_id, 'reset password', request.remote_addr, datetime.now())
+        db.session.commit()
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
         current_app.logger.debug(e)
