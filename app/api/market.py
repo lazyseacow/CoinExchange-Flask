@@ -1,10 +1,9 @@
-import time
 from flask_jwt_extended import jwt_required
 from flask import request, jsonify, current_app
 import requests
 from app.api.verify import auth
 from app.api import api
-from app.models import User
+from app.models.models import User
 from app.utils.response_code import RET
 
 

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 import redis
@@ -7,12 +7,14 @@ from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail
+# from flask_mail import Mail
+from config import APP_ENV, config
+from app.tasks.celery_utils import make_celery
 
-from config import APP_ENV, config, BaseConfig
 
 db = SQLAlchemy()
-mail = Mail()
+# mail = Mail()
+
 redis_conn = None
 
 
@@ -43,9 +45,9 @@ def create_app():
 
     app = Flask(__name__)
     app.config.from_object(config[APP_ENV])
-    app.config['JWT_SECRET_KEY'] = BaseConfig.JWT_SECRET_KEY
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=1)
-    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+    # app.config['JWT_SECRET_KEY'] = config[APP_ENV].JWT_SECRET_KEY
+    # app.config['JWT_ACCESS_TOKEN_EXPIRES'] = config[APP_ENV].JWT_ACCESS_TOKEN_EXPIRES
+    # app.config['JWT_REFRESH_TOKEN_EXPIRES'] = config[APP_ENV].JWT_REFRESH_TOKEN_EXPIRES
 
     jwt = JWTManager(app)
 
@@ -55,7 +57,7 @@ def create_app():
 
     # 创建Redis数据库连接对象
     global redis_conn
-    redis_conn = redis.StrictRedis(host=config[APP_ENV].REDIS_HOST, port=config[APP_ENV].REDIS_PORT)
+    redis_conn = redis.StrictRedis(host=app.config['REDIS_HOST'], port=app.config['REDIS_PORT'], db=app.config['REDIS_DB'])
 
     db.init_app(app)
     # mail.init_app(app)
@@ -64,4 +66,6 @@ def create_app():
     from app.api import api
     app.register_blueprint(api)
 
+    celery = make_celery(app)
+    app.celery = celery
     return app

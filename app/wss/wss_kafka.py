@@ -1,3 +1,4 @@
+# * -*- coding: gbk -*-
 import asyncio
 import json
 import logging
@@ -33,7 +34,7 @@ async def manage_binance_connection(kafka_producer):
                 while True:
                     message = await ws.recv()
                     # 接收币安消息并推送到Kafka
-                    print(message)
+                    # print(message)
                     await kafka_producer.send_and_wait('binance_topic', message.encode('utf-8'))
         except Exception as e:
             print(f"Error with Binance WebSocket: {e}")
@@ -50,6 +51,7 @@ async def handle_client(websocket, path):
     try:
         async for message in websocket:
             message = json.loads(message)
+            print(f'Received message from client {client_id}: {message}')
             action = message['action']
             params_list = message['params']
 
@@ -58,15 +60,16 @@ async def handle_client(websocket, path):
                     for param in params_list:
                         if param not in subscriptions:
                             subscriptions[param] = set()
-                            if not re.match(r".*@trade$", param):
-                                # 发送订阅请求到币安
-                                if binance_ws:
-                                    await binance_ws.send(json.dumps({
-                                        "method": "SUBSCRIBE",
-                                        "params": [param],
-                                        "id": client_id
-                                    }))
-                            subscriptions[param].add(websocket)
+
+                        subscriptions[param].add(websocket)
+                        if not re.match(r".*@miniTicker$", param):
+                            # 发送订阅请求到币安
+                            if binance_ws:
+                                await binance_ws.send(json.dumps({
+                                    "method": "SUBSCRIBE",
+                                    "params": [param],
+                                    "id": client_id
+                                }))
 
             # action为false时，仅用作心跳检测，不进行取消订阅处理
     finally:
@@ -80,7 +83,7 @@ async def handle_disconnect(websocket):
     for params, clients_set in list(subscriptions.items()):
         if websocket in clients_set:
             clients_set.remove(websocket)
-            if not clients_set and not re.match(r".*@trade$", params):
+            if not clients_set and not re.match(r".*@miniTicker$", params):
                 subscriptions_to_remove.append(params)
     for params in subscriptions_to_remove:
         if binance_ws:

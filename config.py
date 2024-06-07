@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from redis import StrictRedis
 
@@ -8,6 +9,9 @@ class BaseConfig:
     # 是否开启跟踪
     SQLALCHEMY_TRACK_MODIFICATIONS = True
     JWT_SECRET_KEY = "h1f56j19im1k61wa7p3r0"
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(seconds=10)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(seconds=60)
+
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@127.0.0.1:3306/coinexchange'
 
@@ -24,7 +28,8 @@ class BaseConfig:
     # 設置session的会话的超时时长 ：一天,全局指定
     PERMANENT_SESSION_LIFETIME = 3600 * 24
 
-    # 配置mongodb数据库
+    # 配置celery
+    BROKER_URL = 'redis://localhost:6379/0'
 
     # QQ邮箱配置
     MAIL_DEBUG = True             # 开启debug，便于调试看信息
@@ -64,24 +69,24 @@ currency_list = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR",
 subscribe_trade = {
     "method": "SUBSCRIBE",
     "params": [
-        "btcusdt@trade",
-        "ethusdt@trade",
-        "ltcusdt@trade",
-        "etcusdt@trade",
-        "xrpusdt@trade",
-        "bchusdt@trade",
-        "trxusdt@trade",
-        "xmrusdt@trade",
-        "dashusdt@trade",
-        "eosusdt@trade",
-        "linkusdt@trade",
-        "xlmusdt@trade",
-        "zecusdt@trade",
-        "uniusdt@trade",
-        "dogeusdt@trade",
-        "qrlusdt@trade",
-        "zugausdt@trade",
-        "xtzusdt@trade",
-        "iotausdt@trade"
+        "btcusdt@miniTicker",
+        "ethusdt@miniTicker",
+        "ltcusdt@miniTicker",
+        "etcusdt@miniTicker",
+        "xrpusdt@miniTicker",
+        "bchusdt@miniTicker",
+        "trxusdt@miniTicker",
+        "xmrusdt@miniTicker",
+        "dashusdt@miniTicker",
+        "eosusdt@miniTicker",
+        "linkusdt@miniTicker",
+        "xlmusdt@miniTicker",
+        "zecusdt@miniTicker",
+        "uniusdt@miniTicker",
+        "dogeusdt@miniTicker",
+        "qrlusdt@miniTicker",
+        "zugausdt@miniTicker",
+        "xtzusdt@miniTicker",
+        "iotausdt@miniTicker"
     ]
 }

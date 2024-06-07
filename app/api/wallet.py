@@ -1,13 +1,8 @@
-import re
-from datetime import datetime, timedelta
-from flask import current_app, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_httpauth import HTTPBasicAuth
-from app import db
+from flask import current_app, jsonify
+from flask_jwt_extended import jwt_required
 from app.api import api
-from app.models import *
+from app.models.models import *
 from app.utils.response_code import RET
-from config import currency_list
 from app.api.verify import auth
 
 

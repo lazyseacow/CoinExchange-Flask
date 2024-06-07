@@ -2,7 +2,7 @@ import asyncio
 import threading
 
 from app import create_app, db
-from app import models
+from app.models import models
 from flask_script import Manager, Shell
 from flask_migrate import Migrate, MigrateCommand
 from flask_migrate import upgrade

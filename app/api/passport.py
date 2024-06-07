@@ -1,11 +1,9 @@
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
-from flask_httpauth import HTTPBasicAuth
-from app import db
 from app.api import api
-from app.models import *
+from app.models.models import *
 from app.utils.response_code import RET
 from config import currency_list
 from app.api.verify import auth
@@ -97,9 +95,15 @@ def Login():
         current_app.logger.debug(e)
         return jsonify(re_code=RET.DBERR, msg='查询用户失败')
 
-    access_token = create_access_token(identity=user.user_id, expires_delta=timedelta(days=3), fresh=True)
+    access_token = create_access_token(identity=user.user_id, fresh=True)
     refresh_token = create_refresh_token(identity=user.user_id)
-    return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token, refresh_token=refresh_token)
+    user_info = {
+        'username': user.username,
+        'email': user.email,
+        'phone': user.phone,
+        'join_time': user.join_time,
+    }
+    return jsonify(re_code=RET.OK, msg='登录成功', data=user_info,access_token=access_token, refresh_token=refresh_token)
 
 
 @api.route('/logout', methods=['POST'])

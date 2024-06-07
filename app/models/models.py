@@ -5,7 +5,7 @@ from cryptography import fernet
 from sqlalchemy.orm import backref
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from . import db
+from app import db
 
 
 # 用户信息服务
@@ -26,6 +26,7 @@ class User(db.Model):
     user_authentication = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
+    entrustment = db.relationship('Entrustment', backref='user', lazy='dynamic')
 
     @classmethod
     def log_user_info(cls, username, email, phone, _password_hash, join_time, last_seen):
@@ -204,8 +205,9 @@ class Wallet(db.Model):
     symbol = db.Column(db.String(255))
     balance = db.Column(db.DECIMAL(18, 8), default=0.0)
     frozen_balance = db.Column(db.DECIMAL(18, 8), default=0.0)
-
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+
+    # order = db.Column(db.Integer, db.ForeignKey('Orders.order_id'), nullable=False)
 
     @classmethod
     def log_transaction(cls, user_id, symbol, balance, frozen_balance):
@@ -359,7 +361,8 @@ class Orders(db.Model):
     __tablename__ = 'orders'
 
     order_id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
-    order_type = db.Column(db.Enum('buy', 'sell'))
+    order_type = db.Column(db.Enum('market', 'limit'))
+    side = db.Column(db.Enum('buy', 'sell'))
     symbol = db.Column(db.String(255), index=True)
     price = db.Column(db.DECIMAL(18, 8))
     executed_price = db.Column(db.DECIMAL(18, 8))
@@ -367,7 +370,6 @@ class Orders(db.Model):
     status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'))
     create_at = db.Column(db.DateTime, default=datetime.now())
     update_at = db.Column(db.DateTime, default=datetime.now())
-
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
     @classmethod
@@ -419,6 +421,26 @@ class Transactions(db.Model):
             'price': self.price,
             'create_at': self.create_at
         }
+
+
+class Entrustment(db.Model):
+    """
+    委托单:用于记录用户在交易市场中的委托单信息，包括买入和卖出订单
+    """
+    __tablename__ = 'entrustment'
+    entrustment_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    symbol = db.Column(db.String(255))
+    entrustment_type = db.Column(db.Enum('buy', 'sell'))
+    side = db.Column(db.Enum('buy', 'sell'))
+    price = db.Column(db.DECIMAL(18, 8))
+    quantity = db.Column(db.DECIMAL(18, 8))
+    status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'), index=True)
+    create_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    update_at = db.Column(db.DateTime, default=datetime.now())
+    stop_profit_percentage = db.Column(db.DECIMAL(18, 8))
+    stop_loss_percentage = db.Column(db.DECIMAL(18, 8))
+
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
 
 # 用户后台管理模块
