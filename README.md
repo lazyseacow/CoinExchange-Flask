@@ -9,6 +9,12 @@
 2. ImportError: cannot import name '_request_ctx_stack' from 'flask' (D:\pyproject\CoinExchange-Flask\venv\Lib\site-packages\flask\__init__.py)  
 解决方案：将`flask_script/commands.py`文件 13行 `from flask import _request_ctx_stack` 书写有误。将其注释即可
 
+## 技术栈
+- **Flask**
+- **Kafka**
+- **Redis**
+- **Celery**
+
 ## 撮合交易引擎（暂不具备自动化交易）
 - **接受订单**  
 撮合引擎受限需要接受来自市场参与者的买卖订单，这些订单包含了价格、数量、订单类型（如市价单、限价单等）、订单ID、订单状态、订单时间戳等信息。
