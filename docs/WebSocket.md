@@ -248,6 +248,33 @@ websocket ws://192.168.1.10:8888
         }
     ]
     ```
+  * ### 按symbol的滚动窗口统计
+    单个symbol的滚动窗口统计，支持多个时间窗口  
+    **Stream 名称:** `<symbol>@ticker_<window_size>`
+    **Window Sizes:** 1h, 4h, 1d
+    **更新速度：** 1000ms
+    **payload:**
+    ```
+    {
+        "e": "1hTicker", // Event type
+        "E": 1672515782136, // Event time
+        "s": "BNBBTC", // 交易对
+        "p": "0.0015", // Price change
+        "P": "250.00", // 时间窗口内的价格涨跌
+        "o": "0.0010", // Open price
+        "h": "0.0025", // High price
+        "l": "0.0010", // Low price
+        "c": "0.0025", // 最新价格
+        "w": "0.0018", // Weighted average price
+        "v": "10000", // Total traded base asset volume
+        "q": "18", // Total traded quote asset volume
+        "O": 0, // Statistics open time
+        "C": 86400000, // Statistics close time
+        "F": 0, // First trade ID
+        "L": 18150, // Last trade Id
+        "n": 18151 // 时间窗口内的总交易量
+    }
+    ```
     
 
     
