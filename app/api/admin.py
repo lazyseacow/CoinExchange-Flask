@@ -1,5 +1,5 @@
 from flask import current_app, jsonify, request
-from flask_jwt_extended import jwt_required, create_access_token, create_refresh_token
+from flask_jwt_extended import jwt_required, create_access_token
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import redis_conn
@@ -7,7 +7,6 @@ from app.api import api
 from app.api.verify import auth
 from app.models.models import *
 from app.utils.response_code import RET
-from app.utils.LatestPriceFromRedis import get_price_from_redis
 
 
 @api.route('/admin/login', methods=['POST'])
@@ -32,9 +31,8 @@ def admin_login():
         "role": admin.role
     }
     access_token = create_access_token(identity=identity)
-    refresh_token = create_refresh_token(identity=identity)
 
-    return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token, refresh_token=refresh_token)
+    return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token)
 
 
 # 登录
@@ -53,10 +51,18 @@ def admin_order_list():
     page = request.json.get('page')
     per_page = current_app.config['PAGE_SIZE']
 
-    if not status:
-        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type).paginate(page=page, per_page=per_page, error_out=False)
-    else:
-        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type, status=status).paginate(page=page, per_page=per_page, error_out=False)
+    query = Orders.query
+
+    if symbol:
+        query = query.filter(Orders.symbol == symbol)
+    if order_type:
+        query = query.filter(Orders.order_type == order_type)
+    if side:
+        query = query.filter(Orders.side == side)
+    if status:
+        query = query.filter(Orders.status == status)
+
+    order_info = query.paginate(page=page, per_page=per_page, error_out=False)
     order_item = order_info.items
 
     order_list = []
@@ -72,12 +78,12 @@ def admin_order_list():
             'created_at': order.created_at.isoformat() if order.created_at else None
         }
         order_list.append(order_data)
-    # order = Orders.query.get(order_id)
+
     return jsonify(re_code=RET.OK, msg='查询成功', data={
         'orders': order_list,
         'total_page': order_info.pages,
         'current_page': order_info.page,
-        'per_page': current_app.config['PAGE_SIZE'],
+        'per_page': per_page,
         'total_count': order_info.total
     })
 
@@ -155,3 +161,46 @@ def get_all_wallet(page):
 
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)
 
+
+@api.route('/admin/assetrecord/<int:page>', methods=['GET'])
+@jwt_required()
+def get_asset_record(page):
+    admin_identity = auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['user_id']).first()
+    if admin_identity['role'] != 'admin' and admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    per_page = current_app.config['PAGE_SIZE']
+
+    wallet_operations_pagination = WalletOperations.query.paginate(page=page, per_page=per_page, error_out=False)
+    wallet_operations = wallet_operations_pagination.items
+
+    user_ids = [wallet_operation.user_id for wallet_operation in wallet_operations]
+
+    # 使用 user_id 批量查询用户信息
+    users = User.query.filter(User.user_id.in_(user_ids)).all()
+    user_dict = {user.user_id: user for user in users}
+
+    wallet_operation_list = []
+    for wallet_operation in wallet_operations:
+        user = user_dict.get(wallet_operation.user_id)
+        wallet_operation_data = {
+            'operation_id': wallet_operation.operation_id,
+            'symbol': wallet_operation.symbol,
+            'operation_type': wallet_operation.operation_type,
+            'operation_time': wallet_operation.operation_time.isoformat() if wallet_operation.operation_time else None,
+            'amount': wallet_operation.amount,
+            'status': wallet_operation.status,
+            'wallet_type': '',
+            'account': user.phone if user else ''
+        }
+        wallet_operation_list.append(wallet_operation_data)
+
+    data = {
+        'wallet_operations_data': wallet_operation_list,
+        'total_page': wallet_operations_pagination.pages,
+        'current_page': wallet_operations_pagination.page,
+        'per_page': per_page,
+        'total_count': wallet_operations_pagination.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
