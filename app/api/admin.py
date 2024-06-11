@@ -51,11 +51,12 @@ def admin_order_list():
     side = request.json.get('side')
     status = request.json.get('status')
     page = request.json.get('page')
+    per_page = current_app.config['PAGE_SIZE']
 
     if not status:
-        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type).paginate(page=page, per_page=current_app.config['PAGE_SIZE'], error_out=False)
+        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type).paginate(page=page, per_page=per_page, error_out=False)
     else:
-        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type, status=status).paginate(page=page, per_page=current_app.config['PAGE_SIZE'], error_out=False)
+        order_info = Orders.query.filter_by(symbol=symbol, side=side, order_type=order_type, status=status).paginate(page=page, per_page=per_page, error_out=False)
     order_item = order_info.items
 
     order_list = []
