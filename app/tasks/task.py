@@ -77,8 +77,9 @@ def process_orders():
                 end_time_price = time.time()
                 logger.info(f"Order {order_id} processed in {end_time_price - start_time_price} seconds.")
                 if not process_order_result:
-                    redis_conn.rpush('order_queue', json.dumps(order_data_json))
+                    # redis_conn.rpush('order_queue', json.dumps(order_data_json))
                     # logger.info(f"Order {order_data_json['order_id']} requeued in order_queue.")
+                    redis_conn.zadd('delayed_order_queue', {json.dumps(order_data_json): time.time() + 60})
                 else:
                     redis_conn.sadd('is_filled', order_id)
                     logger.info(f"Order {order_id} processed successfully.")
@@ -170,8 +171,27 @@ def match_orders(order_data):
         return False
 
 
+@celery.task(name='process_delayed_orders')
+def process_delayed_orders():
+    try:
+        while True:
+            current_time = time.time()
+            delayed_orders = redis_conn.zrangebyscore('delayed_order_queue', 0, current_time)
+            if not delayed_orders:
+                time.sleep(1)
+                continue
+
+            redis_conn.zremrangebyscore('delayed_order_queue', 0, current_time)
+            for order_data in delayed_orders:
+                order_data_json = json.loads(order_data.decode('utf-8'))
+                redis_conn.rpush('order_queue', json.dumps(order_data_json))
+            time.sleep(1)
+    except Exception as e:
+        logger.debug(f"Error processing delayed orders: {e}")
+
+
 if __name__ == '__main__':
     fetch_latest_price.delay()
     process_orders.delay()
-    # match_orders.delay()
+    process_delayed_orders.delay()
     # process_filled_orders.delay()
