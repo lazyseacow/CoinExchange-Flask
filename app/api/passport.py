@@ -2,6 +2,9 @@ import re
 from datetime import timedelta
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
+from flask_jwt_extended.exceptions import NoAuthorizationError
+from jwt import ExpiredSignatureError
+
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
@@ -104,6 +107,16 @@ def Login():
         'join_time': user.join_time,
     }
     return jsonify(re_code=RET.OK, msg='登录成功', data=user_info,access_token=access_token, refresh_token=refresh_token)
+
+
+@api.errorhandler(NoAuthorizationError)
+def handle_no_authorization(e):
+    return jsonify(re_code=RET.SESSIONERR, msg='缺少授权，请提供令牌')
+
+
+@api.errorhandler(ExpiredSignatureError)
+def handle_expired_error(e):
+    return jsonify(re_code=RET.SESSIONERR, msg='token已过期，请重新登录')
 
 
 @api.route('/logout', methods=['POST'])

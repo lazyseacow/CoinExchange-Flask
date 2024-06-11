@@ -8,12 +8,19 @@ class BaseConfig:
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     # 是否开启跟踪
     SQLALCHEMY_TRACK_MODIFICATIONS = True
+
     JWT_SECRET_KEY = "h1f56j19im1k61wa7p3r0"
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(seconds=10)
-    JWT_REFRESH_TOKEN_EXPIRES = timedelta(seconds=60)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=3)
+
+    # 分页器配置
+    PAGE_SIZE = 10
 
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@127.0.0.1:3306/coinexchange'
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'isolation_level': 'SERIALIZABLE'  # 可选 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE'
+    }
 
     # 配置redis数据库
     REDIS_HOST = '127.0.0.1'
@@ -88,5 +95,6 @@ subscribe_trade = {
         "zugausdt@miniTicker",
         "xtzusdt@miniTicker",
         "iotausdt@miniTicker"
+        # "shibusdt@,omoTicker"
     ]
 }

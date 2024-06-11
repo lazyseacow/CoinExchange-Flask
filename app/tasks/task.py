@@ -1,6 +1,8 @@
 import json
 import time
 import logging
+from decimal import Decimal
+
 from sqlalchemy.exc import SQLAlchemyError
 import redis
 from app import create_app
@@ -9,11 +11,9 @@ from confluent_kafka import Consumer, KafkaError
 from app.utils.celery_logger import setup_logger
 from app.utils.LatestPriceFromRedis import get_price_from_redis
 
-# celery = Celery('task', broker='redis://localhost:6379/0')
 celery = create_app().celery
 redis_conn = redis.Redis(host='localhost', port=6379, db=1)
 logger = setup_logger('celery_task', 'logs/celery_task.log', logging.DEBUG)
-MAX_RETRY_COUNT = 5
 
 
 def kafka_consumer_setup():
@@ -58,29 +58,34 @@ def fetch_latest_price():
 def process_orders():
     try:
         while True:
-            order_data = redis_conn.lpop('order_queue')
+            order_data_list = redis_conn.lrange('order_queue', 0, -1)
+            if not order_data_list:
+                time.sleep(1)
+                continue
 
-            if order_data:
+            redis_conn.ltrim('order_queue', len(order_data_list), -1)
+            for order_data in order_data_list:
                 order_data_json = json.loads(order_data.decode('utf-8'))
                 order_id = order_data_json['order_id']
-                # match_orders(order_data_json)
 
-                if redis_conn.sismember('is_processed', order_id):
+                if redis_conn.sismember('is_filled', order_id) or redis_conn.sismember('is_canceled', order_id):
                     logger.info(f"Order {order_id} has been processed")
                     continue
 
+                start_time_price = time.time()
                 process_order_result = match_orders(order_data_json)
+                end_time_price = time.time()
+                logger.info(f"Order {order_id} processed in {end_time_price - start_time_price} seconds.")
                 if not process_order_result:
                     redis_conn.rpush('order_queue', json.dumps(order_data_json))
                     # logger.info(f"Order {order_data_json['order_id']} requeued in order_queue.")
                 else:
-                    redis_conn.sadd('is_processed', order_id)
+                    redis_conn.sadd('is_filled', order_id)
                     logger.info(f"Order {order_id} processed successfully.")
             else:
                 time.sleep(1)
     except Exception as e:
         logger.debug(f"Error processing order: {e}")
-        # print(f"Error processing order: {e}")
 
 
 # @celery.task(name='match_orders')
@@ -89,21 +94,31 @@ def match_orders(order_data):
     user_id = order_data['user_id']
     symbol = order_data['symbol']
     side = order_data['side']
-    price = order_data['price']
-    quantity = order_data['quantity']
+    price = Decimal(order_data['price'])
+    quantity = Decimal(order_data['quantity'])
     base_currency, quote_currency = symbol.split('/')
-    # latest_price = redis_conn.hget('latest_prices', base_currency+quote_currency)   # 获取最新价格
     latest_price = get_price_from_redis(redis_conn, base_currency + quote_currency)
-    # logger.info(f"order_{order_id}: latest_price_{latest_price}")
-
+    logger.info(f'type of price/quantity/latest_price: {type(price)}/{type(quantity)}/{type(latest_price)}')
     try:
+        # order = Orders.query.with_for_update().get(order_id)
         order = Orders.query.get(order_id)
+        if not order:
+            logger.error(f"Order {order_id} not found in the database.")
+            return False
+
+        wallets = Wallet.query.filter(Wallet.user_id == user_id, Wallet.symbol.in_([base_currency, quote_currency])).all()
+        wallet_dict = {wallet.symbol: wallet for wallet in wallets}
+
+        base_wallet = wallet_dict.get(base_currency)
+        quote_wallet = wallet_dict.get(quote_currency)
+
+        log_wallet_operations = []
+
         if side == 'buy':
-            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
             if not quote_wallet or quote_wallet.balance < quantity * latest_price:
-                WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy', amount=quantity, status='failed')
+                log_wallet_operations.append(WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy', amount=quantity, status='failed'))
                 order.status = 'canceled'
+                db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
 
@@ -111,24 +126,22 @@ def match_orders(order_data):
                 # 订单匹配成功，执行交易
                 base_wallet.balance += quantity
                 quote_wallet.balance -= quantity * latest_price
+                db.session.commit()
 
-                WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy', amount=quantity, status='success')
+                log_wallet_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='success'))
+                log_wallet_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(quantity * latest_price), status='success'))
                 order.executed_price = latest_price
                 order.status = 'filled'
                 order.update_at = datetime.now()
+                db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
-
-            else:
-                # 订单未匹配，将订单放入优先队列
-                # redis_conn.rpush('order_queue', json.dumps(order_data))
-                return False
+            return False
         elif side == 'sell':
-            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
             if not base_wallet or base_wallet.balance < quantity:
-                WalletOperations.log_operation(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity * price, status='failed')
+                log_wallet_operations.append(WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='sell', amount=quantity, status='failed'))
                 order.status = 'canceled'
+                db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
 
@@ -136,28 +149,29 @@ def match_orders(order_data):
                 # 订单匹配成功，执行交易
                 base_wallet.balance -= quantity
                 quote_wallet.balance += quantity * price
+                db.session.commit()
 
-                WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type=side, amount=quantity, status='success')
+                log_wallet_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity, status='success'))
+                log_wallet_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=quantity * price, status='success'))
                 order.executed_price = latest_price
                 order.status = 'filled'
                 order.update_at = datetime.now()
+                db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
-
-            else:
-                # redis_conn.rpush('order_queue', json.dumps(order_data))
-                return False
+            return False
 
     except SQLAlchemyError as e:
         logger.debug(f"SQL Error: {e}")
         db.session.rollback()
         return False
     except Exception as e:
-        logger.debug(f"Error matching order id_{order_id}: {e}")
+        logger.debug(f"Error matching order id {order_id}: {e}")
         return False
 
 
 if __name__ == '__main__':
     fetch_latest_price.delay()
     process_orders.delay()
+    # match_orders.delay()
     # process_filled_orders.delay()

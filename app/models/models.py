@@ -8,6 +8,20 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 
 
+# 交易对列表
+class Symbols(db.Model):
+    """
+    交易对表
+    """
+    __tablename__ = 'symbols'
+
+    symbol_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    symbol = db.Column(db.String(255), unique=True, index=True)
+    base_currency = db.Column(db.String(255))
+    quote_currency = db.Column(db.String(255))
+    # price_precision = db.Column(db.Integer)
+
+
 # 用户信息服务
 class User(db.Model):
     """
@@ -23,10 +37,11 @@ class User(db.Model):
     join_time = db.Column(db.DateTime, default=datetime.now())
     last_seen = db.Column(db.DateTime, default=datetime.now())
 
-    user_authentication = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
+    user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
-    entrustment = db.relationship('Entrustment', backref='user', lazy='dynamic')
+    entrustments = db.relationship('Entrustment', backref='user', lazy='dynamic')
+    orders = db.relationship('Orders', backref='user', lazy='dynamic')
 
     @classmethod
     def log_user_info(cls, username, email, phone, _password_hash, join_time, last_seen):
@@ -161,36 +176,6 @@ class UserActivityLogs(db.Model):
             'activity_type': self.activity_type,
             'activity_time': self.activity_time,
             'activity_details': self.activity_details
-        }
-
-
-class APIKeys(db.Model):
-    """
-    API密钥表:对接第三方API的密钥管理
-    TODO:未来根据第三方平台对密钥进行加密保存
-    """
-
-    __tablename__ = 'api_keys'
-
-    key_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    api_key = db.Column(db.String(255))
-    api_secret = db.Column(db.String(255))
-    permissions = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.now())
-
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
-
-    def to_json(self):
-        return {
-            'api_key': self.api_key,
-            'api_secret': self.api_secret,
-            'permissions': self.permissions,
-            'created_at': self.created_at
         }
 
 
@@ -367,10 +352,10 @@ class Orders(db.Model):
     price = db.Column(db.DECIMAL(18, 8))
     executed_price = db.Column(db.DECIMAL(18, 8))
     quantity = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'))
-    create_at = db.Column(db.DateTime, default=datetime.now())
-    update_at = db.Column(db.DateTime, default=datetime.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+    status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'), index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    update_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
     @classmethod
     def log_orders(cls, user_id, order_type, symbol, price, executed_price, quantity):
@@ -444,6 +429,20 @@ class Entrustment(db.Model):
 
 
 # 用户后台管理模块
+class Admins(db.Model):
+    """
+    管理员表:用于存储管理员的信息，包括用户名、密码等
+    """
+    __tablename__ = 'admins'
+
+    admin_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(255), unique=True)
+    password = db.Column(db.String(255))
+    role = db.Column(db.String(255), index=True, default='admin')
+    create_at = db.Column(db.DateTime, default=datetime.now())
+    update_at = db.Column(db.DateTime, default=datetime.now())
+
+
 class Roles(db.Model):
     """
     角色表:用于定义用户的角色，包括管理员、普通用户等
