@@ -12,6 +12,19 @@ from app.utils.response_code import RET
 from app.utils.LatestPriceFromRedis import get_price_from_redis
 
 
+@api.route('/latestprice', methods=['POST'])
+def get_latest_price():
+    try:
+        symbol = request.get_json().get('symbol')
+        return jsonify(re_code=RET.OK, latest_price=get_price_from_redis(redis_conn, symbol))
+    except SQLAlchemyError as e:
+        current_app.logger.error(e)
+        return jsonify(re_code=RET.DBERR, msg='查询错误')
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(re_code=RET.UNKOWNERR, msg='未知错误')
+
+
 @api.route('/orders', methods=['POST'])
 @jwt_required()
 def orders():
@@ -35,11 +48,8 @@ def orders():
 
     try:
         latest_price = get_price_from_redis(redis_conn, base_currency+quote_currency)
-        wallets = Wallet.query.filter(Wallet.user_id == user_id, Wallet.symbol.in_([base_currency, quote_currency])).with_for_update().all()
-        wallet_dict = {wallet.symbol: wallet for wallet in wallets}
-
-        base_wallet = wallet_dict.get(base_currency)
-        quote_wallet = wallet_dict.get(quote_currency)
+        base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
+        quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
 
         log_operations = []
 
@@ -53,6 +63,7 @@ def orders():
 
                 base_wallet.balance -= quantity
                 quote_wallet.balance += latest_price * quantity
+                db.session.commit()
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=quantity * latest_price, status='success'))
@@ -70,6 +81,7 @@ def orders():
 
                 base_wallet.balance += quantity
                 quote_wallet.balance -= quantity * latest_price
+                db.session.commit()
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(quantity * latest_price), status='success'))
@@ -138,10 +150,17 @@ def orderlist():
     page = request.json.get('page')
     per_page = current_app.config['PAGE_SIZE']
 
-    if not status:
-        order_info = Orders.query.filter_by(user_id=user_id, symbol=symbol, side=side, order_type=order_type).paginate(page=page, per_page=per_page, error_out=False)
-    else:
-        order_info = Orders.query.filter_by(user_id=user_id, symbol=symbol, side=side, order_type=order_type, status=status).paginate(page=page, per_page=per_page, error_out=False)
+    query = Orders.query
+    if symbol:
+        query = query.filter(Orders.symbol == symbol)
+    if order_type:
+        query = query.filter(Orders.order_type == order_type)
+    if side:
+        query = query.filter(Orders.side == side)
+    if status:
+        query = query.filter(Orders.status == status)
+
+    order_info = query.paginate(page=page, per_page=per_page, error_out=False)
     order_item = order_info.items
 
     order_list = []
