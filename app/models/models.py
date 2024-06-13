@@ -40,8 +40,10 @@ class User(db.Model):
     user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
+    wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic')
     entrustments = db.relationship('Entrustment', backref='user', lazy='dynamic')
     orders = db.relationship('Orders', backref='user', lazy='dynamic')
+    depositswithdrawals = db.relationship('DepositsWithdrawals', backref='user', lazy='dynamic')
 
     @classmethod
     def log_user_info(cls, username, email, phone, _password_hash, join_time, last_seen):
@@ -219,13 +221,13 @@ class WalletOperations(db.Model):
     __tablename__ = 'wallet_operations'
 
     operation_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    symbol = db.Column(db.String(255))
+    symbol = db.Column(db.String(255), index=True)
     operation_type = db.Column(db.String(255))
     operation_time = db.Column(db.DateTime, default=datetime.now())
     amount = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.String(255))
+    status = db.Column(db.String(255), index=True)
 
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
     @classmethod
     def log_operation(cls, user_id, symbol, operation_type, amount, status):
@@ -315,7 +317,7 @@ class DepositsWithdrawals(db.Model):
     transaction_type = db.Column(db.Enum('deposit', 'withdrawal'))
     symbol = db.Column(db.String(255))
     amount = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.Enum('pending', 'completed', 'failed'))
+    status = db.Column(db.Enum('unpaid', 'pending', 'completed', 'failed'))
     transaction_id = db.Column(db.String(255))
     create_at = db.Column(db.DateTime, default=datetime.now())
     update_at = db.Column(db.DateTime, default=datetime.now())
@@ -356,11 +358,6 @@ class Orders(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
     update_at = db.Column(db.DateTime, default=datetime.now(), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
-
-    @classmethod
-    def log_orders(cls, user_id, order_type, symbol, price, executed_price, quantity):
-        order = cls(user_id=user_id, order_type=order_type, symbol=symbol, price=price, executed_price=executed_price, quantity=quantity)
-        order.save()
 
     def save(self):
         """保存数据"""

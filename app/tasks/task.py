@@ -13,7 +13,7 @@ from app.utils.LatestPriceFromRedis import get_price_from_redis
 
 celery = create_app().celery
 redis_conn = redis.Redis(host='localhost', port=6379, db=1)
-logger = setup_logger('celery_task', 'logs/celery_task.log', logging.DEBUG)
+logger = setup_logger('celery_task', r'D:\pyproject\CoinExchange-Flask/logs/celery_task.log', logging.DEBUG)
 
 
 def kafka_consumer_setup():
@@ -45,7 +45,7 @@ def fetch_latest_price():
             # 解析消息
             message = json.loads(msg.value().decode('utf-8'))
             stream_name = message.get('stream')
-            if stream_name and '@miniTicker' in stream_name:
+            if stream_name and '@ticker' in stream_name:
                 symbol = message['data']['s']
                 price = message['data']['c']
                 redis_conn.hset('latest_prices', symbol, price)
@@ -76,9 +76,9 @@ def process_orders():
                 end_time_price = time.time()
                 logger.info(f"Order {order_id} processed in {end_time_price - start_time_price} seconds.")
                 if not process_order_result:
-                    # redis_conn.rpush('order_queue', json.dumps(order_data_json))
+                    redis_conn.rpush('order_queue', json.dumps(order_data_json))
                     # logger.info(f"Order {order_data_json['order_id']} requeued in order_queue.")
-                    redis_conn.zadd('delayed_order_queue', {json.dumps(order_data_json): time.time() + 60})
+                    # redis_conn.zadd('delayed_order_queue', {json.dumps(order_data_json): time.time() + 60})
                 else:
                     redis_conn.sadd('is_filled', order_id)
                     logger.info(f"Order {order_id} processed successfully.")
@@ -98,7 +98,7 @@ def match_orders(order_data):
     quantity = Decimal(order_data['quantity'])
     base_currency, quote_currency = symbol.split('/')
     latest_price = get_price_from_redis(redis_conn, base_currency + quote_currency)
-    logger.info(f'type of price/quantity/latest_price: {type(price)}/{type(quantity)}/{type(latest_price)}')
+    # logger.info(f'type of price/quantity/latest_price: {type(price)}/{type(quantity)}/{type(latest_price)}')
     try:
         order = Orders.query.get(order_id)
         if not order:
@@ -176,27 +176,6 @@ def match_orders(order_data):
         return False
 
 
-@celery.task(name='process_delayed_orders')
-def process_delayed_orders():
-    try:
-        while True:
-            current_time = time.time()
-            delayed_orders = redis_conn.zrangebyscore('delayed_order_queue', 0, current_time)
-            if not delayed_orders:
-                time.sleep(1)
-                continue
-
-            redis_conn.zremrangebyscore('delayed_order_queue', 0, current_time)
-            for order_data in delayed_orders:
-                order_data_json = json.loads(order_data.decode('utf-8'))
-                redis_conn.rpush('order_queue', json.dumps(order_data_json))
-            time.sleep(1)
-    except Exception as e:
-        logger.debug(f"Error processing delayed orders: {e}")
-
-
 if __name__ == '__main__':
     fetch_latest_price.delay()
     process_orders.delay()
-    process_delayed_orders.delay()
-    # process_filled_orders.delay()

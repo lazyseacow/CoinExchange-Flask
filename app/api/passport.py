@@ -181,23 +181,24 @@ def ModifyPassowrd():
 
 
 @api.route('/resetpassowrd', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 def ResetPassword():
-    current_user_id = auth.get_userinfo()
+    # current_user_id = auth.get_userinfo()
+    phone = request.json.get('phone')
     new_password = request.json.get('new_password')
 
-    user = User().query.filter_by(user_id=current_user_id).first()
+    user = User().query.filter_by(phone=phone).first()
 
     if not user:
         return jsonify(re_code=RET.USERERR, msg='找不到该用户')
 
-    if not user.verify_password(new_password):
+    if user.verify_password(new_password):
         return jsonify(re_code=RET.DATAERR, msg='新密码与旧密码相同')
 
     user.password = new_password
     try:
         user_activity_logs = UserActivityLogs()
-        user_activity_logs.log_activity(current_user_id, 'reset password', request.remote_addr, datetime.now())
+        user_activity_logs.log_activity(user.user_id, 'reset password', request.remote_addr, datetime.now())
         db.session.commit()
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:

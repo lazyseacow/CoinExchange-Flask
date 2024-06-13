@@ -23,6 +23,3 @@ def get_24hr_ticker_price(symbol):
     print(response)
     # price = Decimal(response.json()['priceChangePercent'])
 
-
-if __name__ == '__main__':
-    get_24hr_ticker_price('BTCUSDT')

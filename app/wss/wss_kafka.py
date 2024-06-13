@@ -3,7 +3,6 @@ import asyncio
 import json
 import logging
 import re
-
 import websockets
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 from config import subscribe_trade
@@ -62,7 +61,7 @@ async def handle_client(websocket, path):
                             subscriptions[param] = set()
 
                         subscriptions[param].add(websocket)
-                        if not re.match(r".*@miniTicker$", param):
+                        if not re.match(r".*@ticker$", param):
                             # 发送订阅请求到币安
                             if binance_ws:
                                 await binance_ws.send(json.dumps({
@@ -83,7 +82,7 @@ async def handle_disconnect(websocket):
     for params, clients_set in list(subscriptions.items()):
         if websocket in clients_set:
             clients_set.remove(websocket)
-            if not clients_set and not re.match(r".*@miniTicker$", params):
+            if not clients_set and not re.match(r".*@ticker$", params):
                 subscriptions_to_remove.append(params)
     for params in subscriptions_to_remove:
         if binance_ws:
@@ -129,7 +128,7 @@ async def main():
     # 维持币安WebSocket连接
     binance_task = asyncio.create_task(manage_binance_connection(kafka_producer))
     # 创建WebSocket服务器
-    start_server = websockets.serve(handle_client, "0.0.0.0", 8888)
+    start_server = websockets.serve(handle_client, "0.0.0.0", 8889)
     await start_server
     # 运行直到被取消
     await asyncio.Future()  # Runs forever

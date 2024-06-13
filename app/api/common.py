@@ -13,17 +13,17 @@ def get_all_symbols():
         symbols = Symbols.query.all()
 
         symbol_list = []
+        currency_list = ['USDT']
         for symbol in symbols:
             # print(symbol.symbol)
             symbol_list.append(symbol.symbol)
+            currency_list.append(symbol.base_currency)
 
         data = {
             'symbols': symbol_list,
-            'side': ['买入', '卖出'],
-            'order_type': ['市价委托', '限价委托'],
-            'status': ['挂单', '成交', '取消']
+            'currencys': currency_list,
         }
-        return jsonify(re_code=RET.OK, data=data, msg='交易对获取成功')
+        return jsonify(re_code=RET.OK, data=data, msg='数据获取成功')
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -33,6 +33,3 @@ def get_all_symbols():
     except Exception as e:
         current_app.logger.error(e)
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
-
-
-

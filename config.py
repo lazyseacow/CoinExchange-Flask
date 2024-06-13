@@ -71,30 +71,32 @@ config = {
     "development": DevelopmentConfig,
 }
 
+
+
 # 数字货币支持种类
 currency_list = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR", "DASH", "EOS", "LINK", "XLM", "ZEC", "UNI", "DOGE", "QRL", "ZUGA", "XTZ", "IOTA"]
 subscribe_trade = {
     "method": "SUBSCRIBE",
     "params": [
-        "btcusdt@miniTicker",
-        "ethusdt@miniTicker",
-        "ltcusdt@miniTicker",
-        "etcusdt@miniTicker",
-        "xrpusdt@miniTicker",
-        "bchusdt@miniTicker",
-        "trxusdt@miniTicker",
-        "xmrusdt@miniTicker",
-        "dashusdt@miniTicker",
-        "eosusdt@miniTicker",
-        "linkusdt@miniTicker",
-        "xlmusdt@miniTicker",
-        "zecusdt@miniTicker",
-        "uniusdt@miniTicker",
-        "dogeusdt@miniTicker",
-        "qrlusdt@miniTicker",
-        "zugausdt@miniTicker",
-        "xtzusdt@miniTicker",
-        "iotausdt@miniTicker"
-        # "shibusdt@,omoTicker"
+        "btcusdt@ticker",
+        "ethusdt@ticker",
+        "ltcusdt@ticker",
+        "etcusdt@ticker",
+        "xrpusdt@ticker",
+        "bchusdt@ticker",
+        "trxusdt@ticker",
+        "xmrusdt@ticker",
+        "dashusdt@ticker",
+        "eosusdt@ticker",
+        "linkusdt@ticker",
+        "xlmusdt@ticker",
+        "zecusdt@ticker",
+        "uniusdt@ticker",
+        "dogeusdt@ticker",
+        "qrlusdt@ticker",
+        "zugausdt@ticker",
+        "xtzusdt@ticker",
+        "iotausdt@ticker"
+        # "shibusdt@ticker"
     ]
 }
