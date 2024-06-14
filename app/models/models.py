@@ -37,6 +37,9 @@ class User(db.Model):
     join_time = db.Column(db.DateTime, default=datetime.now())
     last_seen = db.Column(db.DateTime, default=datetime.now())
 
+    web3_address = db.Column(db.String(255))
+    web3_private_key = db.Column(db.String(255))
+
     user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
@@ -164,8 +167,8 @@ class UserActivityLogs(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
     @classmethod
-    def log_activity(cls, user_id, activity_type, activity_details, activity_time):
-        log = cls(user_id=user_id, activity_type=activity_type, activity_details=activity_details, activity_time=activity_time)
+    def log_activity(cls, user_id, activity_type, activity_details):
+        log = cls(user_id=user_id, activity_type=activity_type, activity_details=activity_details)
         log.save()
 
     def save(self):
@@ -182,6 +185,58 @@ class UserActivityLogs(db.Model):
 
 
 # 钱包服务
+class PayPassword(db.Model):
+    """
+    支付密码表:用于存储用户的支付密码，可能需要多个支付密码表
+    """
+    __tablename__ = 'pay_password'
+    pay_password_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    _pay_password_hash = db.Column(db.String(255))
+    update_at = db.Column(db.DateTime, default=datetime.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
+
+    @property
+    def password(self):
+        raise AttributeError('密码不可访问')
+
+    @password.setter
+    def password(self, password):
+        """
+        生成hash密码
+        """
+        self._pay_password_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        """
+        验证密码
+        :param password:
+        :return: 验证成功返回True，失败返回False
+        """
+        if self._pay_password_hash is None:
+            return False
+        return check_password_hash(self._pay_password_hash, password)
+
+    def update_at(self):
+        self.update_at = datetime.now()
+        db.session.add(self)
+
+
+class BindWallets(db.Model):
+    """
+    钱包绑定表:用于存储用户的加密货币钱包地址，可能需要多个钱包绑定表
+    """
+    __tablename__ = 'bind_wallets'
+
+    bind_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    symbol = db.Column(db.String(255))
+    address = db.Column(db.String(255))
+    # private_key = db.Column(db.String(255))
+    agreement_type = db.Column(db.String(255))
+    comment = db.Column(db.Text(255))
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+
+
 class Wallet(db.Model):
     """
     钱包表:管理用户的加密货币余额与交易，可能需要多个钱包表

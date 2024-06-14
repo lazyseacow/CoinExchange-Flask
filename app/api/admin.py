@@ -17,7 +17,6 @@ def admin_login():
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
 
     admin = Admins.query.filter_by(username=username).first()
-    print(type(password), type(admin.password))
     if not admin:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
     if password != admin.password:
@@ -26,7 +25,7 @@ def admin_login():
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
     identity = {
-        "user_id": admin.admin_id,
+        "admin_id": admin.admin_id,
         "username": username,
         "role": admin.role
     }
@@ -40,8 +39,8 @@ def admin_login():
 @jwt_required()
 def admin_order_list():
     admin_identity = auth.get_userinfo()
-    admin = Admins.query.filter_by(admin_id=admin_identity['user_id']).first()
-    if admin_identity['role'] != 'admin' and admin:
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
     symbol = request.json.get('symbol')
@@ -89,18 +88,22 @@ def admin_order_list():
 
 
 # 币币交易
-@api.route('/admin/alluser', methods=['POST'])
+@api.route('/admin/alluser/<int:page>', methods=['GET'])
 @jwt_required()
-def get_all_user():
-    user_identity = auth.get_userinfo()
-    admin = Admins.query.filter_by(admin_id=user_identity['user_id']).first()
-    if user_identity['role'] != 'admin' and admin:
+def get_all_user(page):
+    admin_identity = auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' and admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
-    user_info = User.query.all()
+    # page = request.json.get('page')
+    per_page = current_app.config['PAGE_SIZE']
+    user_paginate = User.query.paginate(page=page, per_page=per_page, error_out=False)
+    user_info = user_paginate.items
+
     user_list = []
     for user in user_info:
-        last_login = user.user_activity_logs.order_by(UserActivityLogs.activity_time.desc()).first()
+        last_login = user.user_activity_logs.filter_by(activity_type='login').order_by(UserActivityLogs.activity_time.desc()).first()
         user_data = {
             'user_id': user.user_id,
             'username': user.username,
@@ -111,7 +114,14 @@ def get_all_user():
             'last_seen': user.last_seen.isoformat() if user.last_seen else None
         }
         user_list.append(user_data)
-    return jsonify(re_code=RET.OK, msg='查询成功', data=user_list)
+    data = {
+        'users': user_list,
+        'total_page': user_paginate.pages,
+        'current_page': user_paginate.page,
+        'per_page': per_page,
+        'total_count': user_paginate.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
 
 
 # 资产列表
@@ -119,15 +129,23 @@ def get_all_user():
 @jwt_required()
 def get_all_wallet(page):
     admin_identity = auth.get_userinfo()
-    admin = Admins.query.filter_by(admin_id=admin_identity['user_id']).first()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
 
-    if admin_identity['role'] != 'admin' and admin:
+    if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
+    currency = request.args.get('currency')
+    user_id = request.args.get('uid')
     per_page = current_app.config['PAGE_SIZE']
 
+    query = Wallet.query
+    if currency:
+        query = query.filter(Wallet.symbol == currency)
+    if user_id:
+        query = query.filter(Wallet.user_id == user_id)
+
     # 查询所有钱包信息并进行分页
-    wallets_pagination = Wallet.query.paginate(page=page, per_page=per_page, error_out=False)
+    wallets_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     wallets = wallets_pagination.items
 
     # 提取所有钱包的 user_id
@@ -162,45 +180,120 @@ def get_all_wallet(page):
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)
 
 
-@api.route('/admin/assetrecord/<int:page>', methods=['GET'])
+# 账变记录
+@api.route('/admin/walletlog', methods=['GET'])
 @jwt_required()
-def get_asset_record(page):
+def get_wallet_record():
     admin_identity = auth.get_userinfo()
-    admin = Admins.query.filter_by(admin_id=admin_identity['user_id']).first()
-    if admin_identity['role'] != 'admin' and admin:
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
+    user_id = request.args.get('uid')
+    symbol = request.args.get('currency')
+    status = request.args.get('status')
+    page = int(request.args.get('page'))
     per_page = current_app.config['PAGE_SIZE']
 
-    wallet_operations_pagination = WalletOperations.query.paginate(page=page, per_page=per_page, error_out=False)
-    wallet_operations = wallet_operations_pagination.items
+    if not page:
+        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
 
-    user_ids = [wallet_operation.user_id for wallet_operation in wallet_operations]
+    query = WalletOperations.query
+    if symbol:
+        query = query.filter_by(symbol=symbol)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if status:
+        query = query.filter_by(status=status)
 
-    # 使用 user_id 批量查询用户信息
-    users = User.query.filter(User.user_id.in_(user_ids)).all()
-    user_dict = {user.user_id: user for user in users}
+    wallet_operations_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    wallet_operations_info = wallet_operations_pagination.items
 
-    wallet_operation_list = []
-    for wallet_operation in wallet_operations:
-        user = user_dict.get(wallet_operation.user_id)
-        wallet_operation_data = {
-            'operation_id': wallet_operation.operation_id,
-            'symbol': wallet_operation.symbol,
-            'operation_type': wallet_operation.operation_type,
-            'operation_time': wallet_operation.operation_time.isoformat() if wallet_operation.operation_time else None,
-            'amount': wallet_operation.amount,
-            'status': wallet_operation.status,
+    wallet_operations_list = []
+    for wallet_operations in wallet_operations_info:
+        wallet_data = {
+            'operation_id': wallet_operations.operation_id,
+            'symbol': wallet_operations.symbol,
+            'operation_type': wallet_operations.operation_type,
+            'operation_time': wallet_operations.operation_time.isoformat() if wallet_operations.operation_time else None,
+            'amount': wallet_operations.amount,
+            'status': wallet_operations.status,
             'wallet_type': '',
-            'account': user.phone if user else ''
+            'account': wallet_operations.user.phone
         }
-        wallet_operation_list.append(wallet_operation_data)
-
+        wallet_operations_list.append(wallet_data)
     data = {
-        'wallet_operations_data': wallet_operation_list,
+        'wallet_operations_data': wallet_operations_list,
         'total_page': wallet_operations_pagination.pages,
         'current_page': wallet_operations_pagination.page,
         'per_page': per_page,
         'total_count': wallet_operations_pagination.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
+
+@api.route('/admin/payandcash', methods=['POST'])
+@jwt_required()
+def get_pay_and_cash():
+    admin_identity = auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    user_id = request.json.get('uid')
+    status = request.json.get('status')
+    transaction_type = request.json.get('transaction_type')
+    currency = request.json.get('currency')
+    start_time = request.json.get('start_time')
+    end_time = request.json.get('end_time')
+    page = int(request.json.get('page'))
+    per_page = current_app.config['PAGE_SIZE']
+
+    query = DepositsWithdrawals.query
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if status:
+        query = query.filter_by(status=status)
+    if transaction_type:
+        query = query.filter_by(transaction_type=transaction_type)
+    if currency:
+        query = query.filter_by(symbol=currency)
+    if start_time:
+        try:
+            start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+            query = query.filter(DepositsWithdrawals.create_at >= start_time)
+        except ValueError:
+            return jsonify(re_code=RET.PARAMERR, msg='开始时间格式错误，请使用YYYY-MM-DD HH:MM:SS格式')
+    if end_time:
+        try:
+            end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+            query = query.filter(DepositsWithdrawals.create_at <= end_time)
+        except ValueError:
+            return jsonify(re_code=RET.PARAMERR, msg='结束时间格式错误，请使用YYYY-MM-DD HH:MM:SS格式')
+
+    deposits_withdrawal_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    deposits_withdrawal_info = deposits_withdrawal_pagination.items
+
+    deposits_withdrawal_list = []
+    for deposits_withdrawal in deposits_withdrawal_info:
+        deposits_withdrawal_data = {
+            'record_id': deposits_withdrawal.record_id,
+            'transaction_type': deposits_withdrawal.transaction_type,
+            'symbol': deposits_withdrawal.symbol,
+            'amount': deposits_withdrawal.amount,
+            'status': deposits_withdrawal.status,
+            'transaction_id': deposits_withdrawal.transaction_id,
+            'create_at': deposits_withdrawal.create_at.isoformat() if deposits_withdrawal.create_at else None,
+            'update_at': deposits_withdrawal.update_at.isoformat() if deposits_withdrawal.update_at else None,
+            'account': deposits_withdrawal.user.phone,
+        }
+        deposits_withdrawal_list.append(deposits_withdrawal_data)
+
+    data = {
+        'deposits_withdrawal_data': deposits_withdrawal_list,
+        'total_page': deposits_withdrawal_pagination.pages,
+        'current_page': deposits_withdrawal_pagination.page,
+        'per_page': per_page,
+        'total_count': deposits_withdrawal_pagination.total
     }
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)

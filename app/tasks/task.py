@@ -76,9 +76,9 @@ def process_orders():
                 end_time_price = time.time()
                 logger.info(f"Order {order_id} processed in {end_time_price - start_time_price} seconds.")
                 if not process_order_result:
-                    redis_conn.rpush('order_queue', json.dumps(order_data_json))
+                    # redis_conn.rpush('order_queue', json.dumps(order_data_json))
                     # logger.info(f"Order {order_data_json['order_id']} requeued in order_queue.")
-                    # redis_conn.zadd('delayed_order_queue', {json.dumps(order_data_json): time.time() + 60})
+                    redis_conn.zadd('delayed_order_queue', {json.dumps(order_data_json): time.time() + 60})
                 else:
                     redis_conn.sadd('is_filled', order_id)
                     logger.info(f"Order {order_id} processed successfully.")
@@ -98,13 +98,8 @@ def match_orders(order_data):
     quantity = Decimal(order_data['quantity'])
     base_currency, quote_currency = symbol.split('/')
     latest_price = get_price_from_redis(redis_conn, base_currency + quote_currency)
-    # logger.info(f'type of price/quantity/latest_price: {type(price)}/{type(quantity)}/{type(latest_price)}')
+    logger.info(f'type of price/quantity/latest_price: {type(price)}/{type(quantity)}/{type(latest_price)}')
     try:
-        order = Orders.query.get(order_id)
-        if not order:
-            logger.error(f"Order {order_id} not found in the database.")
-            return False
-
         base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
         quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
 
@@ -115,12 +110,14 @@ def match_orders(order_data):
                     log_wallet_operations.append(
                         WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy',
                                                        amount=quantity, status='failed'))
+                    order = Orders.query.get(order_id)
                     order.status = 'canceled'
                     db.session.add_all(log_wallet_operations)
                     db.session.commit()
                     return True
 
                 if latest_price <= price:
+                    order = Orders.query.get(order_id)
                     # 订单匹配成功，执行交易
                     base_wallet.balance += quantity
                     quote_wallet.balance -= quantity * latest_price
@@ -143,12 +140,14 @@ def match_orders(order_data):
                     log_wallet_operations.append(
                         WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='sell',
                                                        amount=quantity, status='failed'))
+                    order = Orders.query.get(order_id)
                     order.status = 'canceled'
                     db.session.add_all(log_wallet_operations)
                     db.session.commit()
                     return True
 
                 if latest_price >= price:
+                    order = Orders.query.get(order_id)
                     # 订单匹配成功，执行交易
                     base_wallet.balance -= quantity
                     quote_wallet.balance += quantity * price
@@ -176,6 +175,27 @@ def match_orders(order_data):
         return False
 
 
+@celery.task(name='process_delayed_orders')
+def process_delayed_orders():
+    try:
+        while True:
+            current_time = time.time()
+            delayed_orders = redis_conn.zrangebyscore('delayed_order_queue', 0, current_time)
+            if not delayed_orders:
+                time.sleep(1)
+                continue
+
+            redis_conn.zremrangebyscore('delayed_order_queue', 0, current_time)
+            for order_data in delayed_orders:
+                order_data_json = json.loads(order_data.decode('utf-8'))
+                redis_conn.rpush('order_queue', json.dumps(order_data_json))
+            time.sleep(1)
+    except Exception as e:
+        logger.debug(f"Error processing delayed orders: {e}")
+
+
 if __name__ == '__main__':
     fetch_latest_price.delay()
     process_orders.delay()
+    process_delayed_orders.delay()
+    # process_filled_orders.delay()

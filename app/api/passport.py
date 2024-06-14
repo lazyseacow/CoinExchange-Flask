@@ -1,5 +1,8 @@
+import base64
 import re
 from datetime import timedelta
+import qrcode
+from io import BytesIO
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
 from flask_jwt_extended.exceptions import NoAuthorizationError
@@ -8,6 +11,7 @@ from jwt import ExpiredSignatureError
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
+from app.utils.generate_account import generate_web3_account
 from config import currency_list
 from app.api.verify import auth
 
@@ -23,27 +27,35 @@ def Register():
         return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
-    # wallet = Wallet()
+    pay_password = PayPassword()
+
     phone_exist = user.query.filter_by(phone=phone).first()
     email_exist = user.query.filter_by(email=email).first()
 
     if phone_exist or email_exist:
         return jsonify(re_code=RET.DATAEXIST, msg='手机号码或邮箱已注册')
 
+    web3_address, web3_private_key = generate_web3_account()
     user.username = username
     user.email = email
     user.phone = phone
     user.password = password
     user.join_time = datetime.now()
     user.last_seen = datetime.now()
+    user.web3_address = web3_address
+    user.web3_private_key = web3_private_key
+
     db.session.add(user)
     db.session.flush()
 
     try:
         user.save()
+        pay_password.password = password
+        pay_password.user_id = user.user_id
         for currency in currency_list:
             wallet = Wallet(user_id=user.user_id, symbol=currency, balance=0.0, frozen_balance=0.0)
             db.session.add(wallet)
+        db.session.add(pay_password)
         db.session.commit()
 
     except Exception as e:
@@ -81,6 +93,7 @@ def Login():
             user = User.query.filter_by(email=account).first()
         else:
             return jsonify(re_code=RET.PARAMERR, msg='账户名格式错误')
+
         if not user:
             return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
@@ -92,7 +105,7 @@ def Login():
         user.update_last_seen()
         db.session.flush()
         user_auth.log_auth(user.user_id, auth_type, auth_status, account)
-        user_activity_logs.log_activity(user.user_id, 'login', request.remote_addr, datetime.now())
+        user_activity_logs.log_activity(user.user_id, 'login', request.remote_addr)
 
     except Exception as e:
         current_app.logger.debug(e)
@@ -100,13 +113,34 @@ def Login():
 
     access_token = create_access_token(identity=user.user_id, fresh=True)
     refresh_token = create_refresh_token(identity=user.user_id)
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    # 向二维码对象添加数据
+    qr.add_data(user.web3_address)
+    qr.make(fit=True)
+    # 创建图像
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # 将图像保存到字节流
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    # base64编码的二进制数据
+    img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
     user_info = {
         'username': user.username,
         'email': user.email,
         'phone': user.phone,
         'join_time': user.join_time,
+        'web3_address': user.web3_address,
+        'qr_code': img_str
     }
-    return jsonify(re_code=RET.OK, msg='登录成功', data=user_info,access_token=access_token, refresh_token=refresh_token)
+    return jsonify(re_code=RET.OK, msg='登录成功', data=user_info, access_token=access_token, refresh_token=refresh_token)
 
 
 @api.errorhandler(NoAuthorizationError)
@@ -129,7 +163,7 @@ def Logout():
     current_user_id = auth.get_userinfo()
     if User.query.filter_by(user_id=current_user_id):
         user_activity_logs = UserActivityLogs()
-        user_activity_logs.log_activity(current_user_id, 'logout', request.remote_addr, datetime.now())
+        user_activity_logs.log_activity(current_user_id, 'logout', request.remote_addr)
         return jsonify(re_code=RET.OK, msg='退出成功')
     else:
         return jsonify(re_code=RET.NODATA, msg='退出失败')
@@ -172,7 +206,7 @@ def ModifyPassowrd():
     try:
         db.session.commit()
         user_activity_logs = UserActivityLogs()
-        user_activity_logs.log_activity(current_user_id, 'modify password', request.remote_addr, datetime.now())
+        user_activity_logs.log_activity(current_user_id, 'modify password', request.remote_addr)
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
         current_app.logger.debug(e)
@@ -198,7 +232,7 @@ def ResetPassword():
     user.password = new_password
     try:
         user_activity_logs = UserActivityLogs()
-        user_activity_logs.log_activity(user.user_id, 'reset password', request.remote_addr, datetime.now())
+        user_activity_logs.log_activity(user.user_id, 'reset password', request.remote_addr)
         db.session.commit()
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
