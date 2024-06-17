@@ -11,7 +11,8 @@ from jwt import ExpiredSignatureError
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
-from app.utils.generate_account import generate_web3_account
+from app.utils.generate_account import generate_erc20_account, generate_trc20_account
+from app.utils.generate_qr_code import generate_qr_code
 from config import currency_list
 from app.api.verify import auth
 
@@ -35,15 +36,18 @@ def Register():
     if phone_exist or email_exist:
         return jsonify(re_code=RET.DATAEXIST, msg='手机号码或邮箱已注册')
 
-    web3_address, web3_private_key = generate_web3_account()
+    erc20_address, erc20_private_key = generate_erc20_account()
+    trc20_address, trc20_private_key = generate_trc20_account()
     user.username = username
     user.email = email
     user.phone = phone
     user.password = password
     user.join_time = datetime.now()
     user.last_seen = datetime.now()
-    user.web3_address = web3_address
-    user.web3_private_key = web3_private_key
+    user.erc20_address = erc20_address
+    user.erc20_private_key = erc20_private_key
+    user.trc20_address = trc20_address
+    user.trc20_private_key = trc20_private_key
 
     db.session.add(user)
     db.session.flush()
@@ -114,31 +118,20 @@ def Login():
     access_token = create_access_token(identity=user.user_id, fresh=True)
     refresh_token = create_refresh_token(identity=user.user_id)
 
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    # 向二维码对象添加数据
-    qr.add_data(user.web3_address)
-    qr.make(fit=True)
-    # 创建图像
-    img = qr.make_image(fill_color="black", back_color="white")
+    erc_20_qr_code = generate_qr_code(user.erc20_address)
+    trc_20_qr_code = generate_qr_code(user.trc20_address)
 
-    # 将图像保存到字节流
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    # base64编码的二进制数据
-    img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     user_info = {
         'username': user.username,
         'email': user.email,
         'phone': user.phone,
         'join_time': user.join_time,
-        'web3_address': user.web3_address,
-        'qr_code': img_str
+        'erc20_address': user.erc20_address,
+        'erc_20_qr_code': erc_20_qr_code,
+        'trc20_address': user.trc20_address,
+        'trc_20_qr_code': trc_20_qr_code,
+
     }
     return jsonify(re_code=RET.OK, msg='登录成功', data=user_info, access_token=access_token, refresh_token=refresh_token)
 

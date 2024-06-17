@@ -1,4 +1,5 @@
 import json
+import uuid
 from decimal import Decimal
 
 from PIL import Image
@@ -228,81 +229,62 @@ def cancel_order():
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
-@api.route('/modifypaypwd', methods=['POST'])
+@api.route('/feerate', methods=['GET'])
 @jwt_required()
-def modify_pay_password():
+def fees():
+    user_id = auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+    try:
+        fees = Fees.query.all()
+        return jsonify(re_code=RET.OK, msg='查询成功', data=[fee.to_json() for fee in fees])
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error('数据库操作异常:' + str(e))
+        return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
+
+
+@api.route('/withdrawal', methods=['POST'])
+@jwt_required()
+def withdrawal():
     user_id = auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
-    old_pwd = request.json.get('old_password')
-    new_pwd = request.json.get('new_password')
-
-    pay_password = PayPassword.query.filter_by(user_id=user_id).first()
-    if not pay_password.verify_password(old_pwd):
-        return jsonify(re_code=RET.PWDERR, msg='旧密码错误')
-
-    if pay_password.verify_password(new_pwd):
-        return jsonify(re_code=RET.PWDERR, msg='新密码与旧密码相同')
-
-    pay_password.password = new_pwd
-    pay_password.update_at()
-
     try:
+        symbol = request.json.get('symbol')
+        amount = Decimal(request.json.get('amount'))
+        fee = Decimal(request.json.get('fee'))
+        finally_amount = Decimal(request.json.get('finally_amount'))
+        address = request.json.get('address')
+        pay_pwd = request.json.get('pay_pwd')
+
+        if not all([symbol, fee, amount, finally_amount, address, pay_pwd]):
+            return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+        if finally_amount != amount - fee:
+            return jsonify(re_code=RET.PARAMERR, msg='提现金额错误')
+
+        pay_password = PayPassword.query.filter_by(user_id=user_id).first()
+        if not pay_password.verify_password(pay_pwd):
+            return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
+
+        wallet = Wallet.query.filter_by(user_id=user_id, symbol=symbol).first()
+        if wallet.balance < finally_amount:
+            return jsonify(re_code=RET.DATAERR, msg='余额不足')
+
+        wallet = Wallet.query.filter_by(user_id=user_id, symbol=symbol).first()
+        wallet.balance -= amount
+
+        deposits_withdrawals = DepositsWithdrawals(user_id=user_id, transaction_id=str(uuid.uuid4()), transaction_type='withdrawal', symbol=symbol, amount=amount, finally_amount=finally_amount, fee=fee, status='pending', create_at=datetime.now(), update_at=datetime.now())
+        db.session.add(deposits_withdrawals)
         db.session.commit()
-        user_activity_logs = UserActivityLogs()
-        user_activity_logs.log_activity(user_id, 'modify pay password', request.remote_addr)
-        return jsonify(re_code=RET.OK, msg='修改成功')
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
-        return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
-    except Exception as e:
-        current_app.logger.error(e)
-        return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
-
-
-@api.route('/bindwallet', methods=['POST'])
-@jwt_required()
-def bind_wallet():
-    user_id = auth.get_userinfo()
-    user = User.query.filter_by(user_id=user_id).first()
-    if not user:
-        return jsonify(re_code=RET.NODATA, msg='用户不存在')
-
-    if 'wallet_qr' not in request.files:
-        return jsonify(re_code=RET.PARAMERR, msg='请上传钱包二维码')
-
-    currency = request.form.get('currency')
-    agreement_type = request.form.get('agreement_type')
-    wallet_address = request.form.get('wallet_address')
-    wallet_qr = request.files.get('wallet_qr')
-    comment = request.form.get('comment')
-
-    if not all([currency, agreement_type, wallet_address, wallet_qr.filename]):
-        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
-
-    if wallet_qr.filename == '':
-        return jsonify(re_code=RET.PARAMERR, msg='请选择图片')
-
-    if BindWallets.query.filter_by(user_id=user_id, address=wallet_address).first():
-        return jsonify(re_code=RET.DATAEXIST, msg='钱包地址已存在')
-
-    try:
-        if wallet_qr:
-            image = Image.open(wallet_qr.stream)
-            decoded_objects = pyzbar.decode(image)
-            qr_data = [obj.data.decode('utf-8') for obj in decoded_objects]
-            # print(type(wallet_address), type(qr_data[0]))
-
-            if wallet_address != qr_data[0]:
-                return jsonify(re_code=RET.PARAMERR, msg='钱包地址与二维码不匹配')
-
-            bind_wallets = BindWallets(symbol=currency, address=wallet_address, agreement_type=agreement_type, comment=comment, user_id=user_id)
-            db.session.add(bind_wallets)
-            db.session.commit()
-            return jsonify(re_code=RET.OK, msg='绑定成功')
+        return jsonify(re_code=RET.OK, msg='提现申请成功')
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -311,6 +293,10 @@ def bind_wallet():
     except Exception as e:
         current_app.logger.error(e)
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
+
+
+
+
 
 
 

@@ -37,13 +37,17 @@ class User(db.Model):
     join_time = db.Column(db.DateTime, default=datetime.now())
     last_seen = db.Column(db.DateTime, default=datetime.now())
 
-    web3_address = db.Column(db.String(255))
-    web3_private_key = db.Column(db.String(255))
+    erc20_address = db.Column(db.String(255))
+    erc20_private_key = db.Column(db.String(255))
+
+    trc20_address = db.Column(db.String(255))
+    trc20_private_key = db.Column(db.String(255))
 
     user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
     wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic')
+    bind_wallets = db.relationship('BindWallets', backref='user', lazy='dynamic')
     entrustments = db.relationship('Entrustment', backref='user', lazy='dynamic')
     orders = db.relationship('Orders', backref='user', lazy='dynamic')
     depositswithdrawals = db.relationship('DepositsWithdrawals', backref='user', lazy='dynamic')
@@ -236,6 +240,17 @@ class BindWallets(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now())
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
+    def to_json(self):
+        return {
+            'bind_id': self.bind_id,
+            'symbol': self.symbol,
+            'address': self.address,
+            # 'private_key': self.private_key,
+            'agreement_type': self.agreement_type,
+            # 'comment': self.comment,
+            # 'created_at': self.created_at
+        }
+
 
 class Wallet(db.Model):
     """
@@ -374,15 +389,12 @@ class DepositsWithdrawals(db.Model):
     amount = db.Column(db.DECIMAL(18, 8))
     status = db.Column(db.Enum('unpaid', 'pending', 'completed', 'failed'))
     transaction_id = db.Column(db.String(255))
+    fee = db.Column(db.DECIMAL(18, 8))
+    finally_amount = db.Column(db.DECIMAL(18, 8))
     create_at = db.Column(db.DateTime, default=datetime.now())
     update_at = db.Column(db.DateTime, default=datetime.now())
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
 
     def to_json(self):
         return {
@@ -393,6 +405,24 @@ class DepositsWithdrawals(db.Model):
             'transaction_id': self.transaction_id,
             'create_at': self.create_at,
             'update_at': self.update_at
+        }
+
+
+class Fees(db.Model):
+    """
+    交易费率:用于存储交易费率信息
+    """
+    __tablename__ = 'fees'
+    fee_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    currency = db.Column(db.String(255))
+    fee_rate = db.Column(db.DECIMAL(18, 8))
+    create_at = db.Column(db.DateTime, default=datetime.now())
+    update_at = db.Column(db.DateTime, default=datetime.now())
+
+    def to_json(self):
+        return {
+            'currency': self.currency,
+            'fee_rate': self.fee_rate,
         }
 
 

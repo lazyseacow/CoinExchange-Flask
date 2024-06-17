@@ -1,7 +1,7 @@
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required, create_access_token
 from sqlalchemy.exc import SQLAlchemyError
-
+from datetime import timedelta
 from app import redis_conn
 from app.api import api
 from app.api.verify import auth
@@ -297,3 +297,50 @@ def get_pay_and_cash():
         'total_count': deposits_withdrawal_pagination.total
     }
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
+
+@api.route('/admin/digitalwallet', methods=['GET'])
+@jwt_required()
+def admin_digital_wallet():
+    admin_identity = auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    symbol = request.args.get('symbol')
+    agreement_type = request.args.get('agreement_type')
+    user_id = request.args.get('uid')
+    per_page = current_app.config['PAGE_SIZE']
+
+    query = BindWallets.query
+
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if symbol:
+        query = query.filter_by(symbol=symbol)
+    if agreement_type:
+        query = query.filter_by(agreement_type=agreement_type)
+
+    digital_wallets = query.paginate(page=1, per_page=per_page, error_out=False)
+    if not digital_wallets:
+        return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
+    digital_wallets_list = []
+    for digital_wallet in digital_wallets:
+        digital_wallet_data = {
+            'bind_id': digital_wallet.bind_id,
+            'symbol': digital_wallet.symbol,
+            'address': digital_wallet.address,
+            'agreement_type': digital_wallet.agreement_type,
+            'comment': digital_wallet.comment,
+            'create_at': digital_wallet.created_at.isoformat() if digital_wallet.created_at else None,
+        }
+        digital_wallets_list.append(digital_wallet_data)
+    data = {
+        'digital_wallets': digital_wallets_list,
+        'total_page': digital_wallets.pages,
+        'current_page': digital_wallets.page,
+        'per_page': per_page,
+        'total_count': digital_wallets.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
