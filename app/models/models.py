@@ -43,24 +43,14 @@ class User(db.Model):
     trc20_address = db.Column(db.String(255))
     trc20_private_key = db.Column(db.String(255))
 
-    user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic')
+    user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
-    wallets = db.relationship('Wallet', backref='user', lazy='dynamic')
+    wallets = db.relationship('Wallet', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic')
-    bind_wallets = db.relationship('BindWallets', backref='user', lazy='dynamic')
-    entrustments = db.relationship('Entrustment', backref='user', lazy='dynamic')
+    bind_wallets = db.relationship('BindWallets', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    pay_password = db.relationship('PayPassword', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     orders = db.relationship('Orders', backref='user', lazy='dynamic')
     depositswithdrawals = db.relationship('DepositsWithdrawals', backref='user', lazy='dynamic')
-
-    @classmethod
-    def log_user_info(cls, username, email, phone, _password_hash, join_time, last_seen):
-        user = cls(username=username, email=email, phone=phone, _password_hash=_password_hash, join_time=join_time, last_seen=last_seen)
-        user.save()
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
 
     @property
     def password(self):
@@ -297,6 +287,8 @@ class WalletOperations(db.Model):
     amount = db.Column(db.DECIMAL(18, 8))
     status = db.Column(db.String(255), index=True)
 
+    # wallet_id = db.Column(db.Integer, db.ForeignKey('wallet.wallet_id'), nullable=False, index=True)
+
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
     @classmethod
@@ -384,15 +376,15 @@ class DepositsWithdrawals(db.Model):
     __tablename__ = 'deposits_withdrawals'
 
     record_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    transaction_type = db.Column(db.Enum('deposit', 'withdrawal'))
-    symbol = db.Column(db.String(255))
+    transaction_type = db.Column(db.Enum('deposit', 'withdrawal'), index=True)
+    symbol = db.Column(db.String(255), index=True)
     amount = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.Enum('unpaid', 'pending', 'completed', 'failed'))
+    status = db.Column(db.Enum('unpaid', 'pending', 'completed', 'failed'), index=True)
     transaction_id = db.Column(db.String(255))
     fee = db.Column(db.DECIMAL(18, 8))
     finally_amount = db.Column(db.DECIMAL(18, 8))
-    create_at = db.Column(db.DateTime, default=datetime.now())
-    update_at = db.Column(db.DateTime, default=datetime.now())
+    create_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    update_at = db.Column(db.DateTime, default=datetime.now(), index=True)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 

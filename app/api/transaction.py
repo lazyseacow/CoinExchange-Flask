@@ -67,7 +67,7 @@ def orders():
 
                 base_wallet.balance -= quantity
                 quote_wallet.balance += latest_price * quantity
-                db.session.commit()
+                # db.session.commit()
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=quantity * latest_price, status='success'))
@@ -85,7 +85,7 @@ def orders():
 
                 base_wallet.balance += quantity
                 quote_wallet.balance -= quantity * latest_price
-                db.session.commit()
+                # db.session.commit()
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(quantity * latest_price), status='success'))
@@ -258,9 +258,9 @@ def withdrawal():
 
     try:
         symbol = request.json.get('symbol')
-        amount = Decimal(request.json.get('amount'))
-        fee = Decimal(request.json.get('fee'))
-        finally_amount = Decimal(request.json.get('finally_amount'))
+        amount = Decimal(request.json.get('amount')).quantize(Decimal('0.00000000'))
+        fee = Decimal(request.json.get('fee')).quantize(Decimal('0.00000000'))
+        finally_amount = Decimal(request.json.get('finally_amount')).quantize(Decimal('0.00000000'))
         address = request.json.get('address')
         pay_pwd = request.json.get('pay_pwd')
 
@@ -282,7 +282,8 @@ def withdrawal():
         wallet.balance -= amount
 
         deposits_withdrawals = DepositsWithdrawals(user_id=user_id, transaction_id=str(uuid.uuid4()), transaction_type='withdrawal', symbol=symbol, amount=amount, finally_amount=finally_amount, fee=fee, status='pending', create_at=datetime.now(), update_at=datetime.now())
-        db.session.add(deposits_withdrawals)
+        wallet_log = WalletOperations(user_id=user_id, symbol=symbol, operation_type='withdrawal', operation_time=datetime.now(), amount=-amount, status='success')
+        db.session.add_all([deposits_withdrawals, wallet_log])
         db.session.commit()
         return jsonify(re_code=RET.OK, msg='提现申请成功')
 

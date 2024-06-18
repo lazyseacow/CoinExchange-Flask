@@ -33,6 +33,11 @@ def Register():
     phone_exist = user.query.filter_by(phone=phone).first()
     email_exist = user.query.filter_by(email=email).first()
 
+    if not re.match(r'\d{11}$', phone):
+        return jsonify(re_code=RET.PARAMERR, msg='手机号码格式错误')
+    if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        return jsonify(re_code=RET.PARAMERR, msg='邮箱格式错误')
+
     if phone_exist or email_exist:
         return jsonify(re_code=RET.DATAEXIST, msg='手机号码或邮箱已注册')
 
@@ -53,7 +58,7 @@ def Register():
     db.session.flush()
 
     try:
-        user.save()
+        db.session.commit()
         pay_password.password = password
         pay_password.user_id = user.user_id
         for currency in currency_list:

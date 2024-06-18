@@ -14,7 +14,7 @@ db_config = {
 }
 
 symbols = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR", "DASH", "EOS", "LINK", "XLM", "ZEC", "UNI", "DOGE", "QRL", "ZUGA", "XTZ", "IOTA"]
-user_ids = [8, 9, 10, 11]
+user_ids = [16, 17, 18, 19, 21, 22, 23, 24, 25]
 
 
 # 连接数据库
@@ -26,7 +26,6 @@ try:
             for symbol in symbols:
                 balance = round(random.uniform(0.1, 10000.0), 8)
                 frozen_balance = round(random.uniform(0.1, 10000.0), 8)
-                user_id = random.choice(user_ids)
 
                 sql = ("INSERT INTO wallet (symbol, balance, frozen_balance, user_id) "
                        "VALUES (%s, %s, %s, %s)")

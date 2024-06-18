@@ -13,11 +13,11 @@ db_config = {
     'cursorclass': pymysql.cursors.DictCursor
 }
 
-operation_types = ['sell', 'buy']
+operation_types = ['sell', 'buy', 'deposit', 'withdrawal']
 symbols = ["USDT", "BTC", "ETH", "LTC", "ETC", "XRP", "BCH", "TRX", "XMR", "DASH", "EOS", "LINK", "XLM", "ZEC", "UNI", "DOGE", "QRL", "ZUGA", "XTZ", "IOTA"]
 statuses = ['success', 'failed']
 # operation_time = [datetime.datetime(2023, 1, 1), datetime.datetime(2024, 6, 13)]
-user_ids = [8, 9, 10, 11]
+user_ids = [16, 17, 18, 19, 21, 22, 23, 24, 25]
 
 
 def random_date(start, end):
@@ -41,6 +41,8 @@ try:
             operation_time = random_date(start_date, end_date)
 
             if operation_types == 'buy':
+                amount = -amount
+            if operation_types == 'withdrawal':
                 amount = -amount
 
             sql = ("INSERT INTO wallet_operations (operation_type, symbol, amount, status, user_id, operation_time) "

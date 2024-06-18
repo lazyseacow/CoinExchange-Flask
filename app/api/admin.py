@@ -34,7 +34,6 @@ def admin_login():
     return jsonify(re_code=RET.OK, msg='登录成功', access_token=access_token)
 
 
-# 登录
 @api.route('/admin/orderlist', methods=['POST'])
 @jwt_required()
 def admin_order_list():
@@ -87,18 +86,35 @@ def admin_order_list():
     })
 
 
-# 币币交易
-@api.route('/admin/alluser/<int:page>', methods=['GET'])
+@api.route('/admin/alluser', methods=['GET'])
 @jwt_required()
-def get_all_user(page):
+def get_all_user():
     admin_identity = auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' and admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
     # page = request.json.get('page')
+    user_id = request.args.get('uid')
+    phone = request.args.get('phone')
+    email = request.args.get('email')
+    erc20_address = request.args.get('erc20_address')
+    trc20_address = request.args.get('trc20_address')
+    page = int(request.args.get('page'))
     per_page = current_app.config['PAGE_SIZE']
-    user_paginate = User.query.paginate(page=page, per_page=per_page, error_out=False)
+
+    query = User.query
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if phone:
+        query = query.filter_by(phone=phone)
+    if email:
+        query = query.filter_by(email=email)
+    if erc20_address:
+        query = query.filter_by(erc20_address=erc20_address)
+    if trc20_address:
+        query = query.filter_by(trc20_address=trc20_address)
+    user_paginate = query.paginate(page=page, per_page=per_page, error_out=False)
     user_info = user_paginate.items
 
     user_list = []
@@ -109,6 +125,8 @@ def get_all_user(page):
             'username': user.username,
             'email': user.email,
             'phone': user.phone,
+            'erc20_address': user.erc20_address,
+            'trc20_address': user.trc20_address,
             'join_time': user.join_time.isoformat() if user.join_time else None,
             'last_login_ip': last_login.activity_details if last_login else None,
             'last_seen': user.last_seen.isoformat() if user.last_seen else None
@@ -191,6 +209,7 @@ def get_wallet_record():
 
     user_id = request.args.get('uid')
     symbol = request.args.get('currency')
+    operation_type = request.args.get('operation_type')
     status = request.args.get('status')
     page = int(request.args.get('page'))
     per_page = current_app.config['PAGE_SIZE']
@@ -205,6 +224,8 @@ def get_wallet_record():
         query = query.filter_by(user_id=user_id)
     if status:
         query = query.filter_by(status=status)
+    if operation_type:
+        query = query.filter_by(operation_type=operation_type)
 
     wallet_operations_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     wallet_operations_info = wallet_operations_pagination.items
@@ -271,7 +292,7 @@ def get_pay_and_cash():
         except ValueError:
             return jsonify(re_code=RET.PARAMERR, msg='结束时间格式错误，请使用YYYY-MM-DD HH:MM:SS格式')
 
-    deposits_withdrawal_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    deposits_withdrawal_pagination = query.order_by(DepositsWithdrawals.create_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     deposits_withdrawal_info = deposits_withdrawal_pagination.items
 
     deposits_withdrawal_list = []
@@ -281,6 +302,8 @@ def get_pay_and_cash():
             'transaction_type': deposits_withdrawal.transaction_type,
             'symbol': deposits_withdrawal.symbol,
             'amount': deposits_withdrawal.amount,
+            'fee': deposits_withdrawal.fee,
+            'finally_amount': deposits_withdrawal.finally_amount,
             'status': deposits_withdrawal.status,
             'transaction_id': deposits_withdrawal.transaction_id,
             'create_at': deposits_withdrawal.create_at.isoformat() if deposits_withdrawal.create_at else None,
@@ -321,9 +344,11 @@ def admin_digital_wallet():
     if agreement_type:
         query = query.filter_by(agreement_type=agreement_type)
 
-    digital_wallets = query.paginate(page=1, per_page=per_page, error_out=False)
-    if not digital_wallets:
-        return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
+    digital_wallets_pagination = query.paginate(page=1, per_page=per_page, error_out=False)
+    digital_wallets = digital_wallets_pagination.items
+
+    # if not digital_wallets:
+    #     return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在', data=digital_wallets)
     digital_wallets_list = []
     for digital_wallet in digital_wallets:
         digital_wallet_data = {
@@ -337,10 +362,38 @@ def admin_digital_wallet():
         digital_wallets_list.append(digital_wallet_data)
     data = {
         'digital_wallets': digital_wallets_list,
-        'total_page': digital_wallets.pages,
-        'current_page': digital_wallets.page,
+        'total_page': digital_wallets_pagination.pages,
+        'current_page': digital_wallets_pagination.page,
         'per_page': per_page,
-        'total_count': digital_wallets.total
+        'total_count': digital_wallets_pagination.total
     }
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
+
+@api.route('/admin/deleteuser', methods=['POST'])
+@jwt_required()
+def delete_user():
+    admin_identity = auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+    user_id = request.json.get('uid')
+    if not user_id:
+        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+    except SQLAlchemyError as e:
+        current_app.logger.error(e)
+        db.session.rollback()
+        return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
+    except Exception as e:
+        current_app.logger.error(e)
+        db.session.rollback()
+        return jsonify(re_code=RET.DBERR, msg='删除失败')
+    return jsonify(re_code=RET.OK, msg='删除成功')
 
