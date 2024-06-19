@@ -10,8 +10,11 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = True
 
     JWT_SECRET_KEY = "h1f56j19im1k61wa7p3r0"
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=3)
+
+    # 签名密钥
+    SECRET_KEY = "你好hello안녕하세요こんにちは."
 
     # 分页器配置
     PAGE_SIZE = 10

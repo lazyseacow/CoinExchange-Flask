@@ -70,7 +70,6 @@ async def handle_client(websocket, path):
 
                         subscriptions[param].add(websocket)
                         if not re.match(r".*@ticker$", param):
-                            # 发送订阅请求到币安
                             if binance_ws:
                                 await binance_ws.send(json.dumps({
                                     "method": "SUBSCRIBE",

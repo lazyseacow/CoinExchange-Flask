@@ -1,7 +1,7 @@
 from flask_jwt_extended import jwt_required
 from flask import request, jsonify, current_app
 import requests
-from app.api.verify import auth
+from app.auth.verify import token_auth
 from app.api import api
 from app.models.models import User
 from app.utils.response_code import RET
@@ -10,10 +10,10 @@ from app.utils.response_code import RET
 @api.route('/klines', methods=['GET'])
 @jwt_required()
 def get_klines_from_binance():
-    user_id = auth.get_userinfo()
-    user = User.query.filter_by(user_id=user_id).first()
-    if not user:
-        return jsonify(re_code=RET.USERERR, msg='用户不存在')
+    # user_id = token_auth.get_userinfo()
+    # user = User.query.filter_by(user_id=user_id).first()
+    # if not user:
+    #     return jsonify(re_code=RET.USERERR, msg='用户不存在')
 
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
@@ -22,6 +22,7 @@ def get_klines_from_binance():
     startTime = request.args.get('startTime')
     endTime =  request.args.get('endTime')
 
+    # breakpoint()
     binance_klines_url = 'https://api1.binance.com/api/v3/klines'
     params = {
         'symbol': symbol,

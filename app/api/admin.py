@@ -1,10 +1,8 @@
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required, create_access_token
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import timedelta
-from app import redis_conn
 from app.api import api
-from app.api.verify import auth
+from app.auth.verify import token_auth
 from app.models.models import *
 from app.utils.response_code import RET
 
@@ -37,7 +35,7 @@ def admin_login():
 @api.route('/admin/orderlist', methods=['POST'])
 @jwt_required()
 def admin_order_list():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
@@ -89,7 +87,7 @@ def admin_order_list():
 @api.route('/admin/alluser', methods=['GET'])
 @jwt_required()
 def get_all_user():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' and admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
@@ -146,7 +144,7 @@ def get_all_user():
 @api.route('/admin/allwallet/<int:page>', methods=['GET'])
 @jwt_required()
 def get_all_wallet(page):
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
 
     if admin_identity['role'] != 'admin' or not admin:
@@ -202,7 +200,7 @@ def get_all_wallet(page):
 @api.route('/admin/walletlog', methods=['GET'])
 @jwt_required()
 def get_wallet_record():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
@@ -256,7 +254,7 @@ def get_wallet_record():
 @api.route('/admin/payandcash', methods=['POST'])
 @jwt_required()
 def get_pay_and_cash():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
@@ -325,7 +323,7 @@ def get_pay_and_cash():
 @api.route('/admin/digitalwallet', methods=['GET'])
 @jwt_required()
 def admin_digital_wallet():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
@@ -373,7 +371,7 @@ def admin_digital_wallet():
 @api.route('/admin/deleteuser', methods=['POST'])
 @jwt_required()
 def delete_user():
-    admin_identity = auth.get_userinfo()
+    admin_identity = token_auth.get_userinfo()
     admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
     if admin_identity['role'] != 'admin' or not admin:
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')

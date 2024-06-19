@@ -44,13 +44,13 @@ class User(db.Model):
     trc20_private_key = db.Column(db.String(255))
 
     user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic')
+    user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic')
+    wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     bind_wallets = db.relationship('BindWallets', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     pay_password = db.relationship('PayPassword', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    orders = db.relationship('Orders', backref='user', lazy='dynamic')
-    depositswithdrawals = db.relationship('DepositsWithdrawals', backref='user', lazy='dynamic')
+    orders = db.relationship('Orders', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    depositswithdrawals = db.relationship('DepositsWithdrawals', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
     @property
     def password(self):
@@ -282,8 +282,8 @@ class WalletOperations(db.Model):
 
     operation_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     symbol = db.Column(db.String(255), index=True)
-    operation_type = db.Column(db.String(255))
-    operation_time = db.Column(db.DateTime, default=datetime.now())
+    operation_type = db.Column(db.String(255), index=True)
+    operation_time = db.Column(db.DateTime, default=datetime.now(), index=True)
     amount = db.Column(db.DECIMAL(18, 8))
     status = db.Column(db.String(255), index=True)
 
@@ -424,6 +424,7 @@ class Orders(db.Model):
     """
     __tablename__ = 'orders'
 
+    order_uuid = db.Column(db.String(255), unique=True, index=True)
     order_id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
     order_type = db.Column(db.Enum('market', 'limit'))
     side = db.Column(db.Enum('buy', 'sell'))

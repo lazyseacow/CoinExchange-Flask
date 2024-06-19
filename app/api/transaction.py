@@ -2,15 +2,13 @@ import json
 import uuid
 from decimal import Decimal
 
-from PIL import Image
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required
-from pyzbar import pyzbar
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import redis_conn
 from app.api import api
-from app.api.verify import auth
+from app.auth.verify import token_auth, sign_auth
 from app.models.models import *
 from app.utils.response_code import RET
 from app.utils.LatestPriceFromRedis import get_price_from_redis
@@ -32,29 +30,33 @@ def get_latest_price():
 @api.route('/orders', methods=['POST'])
 @jwt_required()
 def orders():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     if not User.query.filter_by(user_id=user_id).first():
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
     data = request.get_json()
-    if not data:
-        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
-
     order_type = data.get('order_type')
     side = data.get('side')
     symbol = data.get('symbol')
     quantity = data.get('quantity')
-    price = data.get('price') if data.get('price') else 0
+    price = data.get('price', '')
     base_currency, quote_currency = symbol.split('/')
-
-    if not all([symbol, quantity, order_type]):
+    timestamp = data.get('timestamp')
+    x_signature = data.get('x_signature')
+    if not all([symbol, quantity, order_type, timestamp, x_signature]):
+        print(symbol, quantity, order_type, timestamp, x_signature)
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+    encrypt_data = f'{order_type}+{side}+{symbol}+{quantity}+{price}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     try:
         latest_price = get_price_from_redis(redis_conn, base_currency+quote_currency)
         base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
         quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
 
+        order_uuid = str(uuid.uuid4())
         log_operations = []
 
         if order_type == 'market':
@@ -71,7 +73,7 @@ def orders():
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=quantity * latest_price, status='success'))
-                log_operations.append(Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
+                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
                 db.session.add_all(log_operations)
                 db.session.commit()
                 return jsonify(re_code=RET.OK, msg='交易成功')
@@ -89,7 +91,7 @@ def orders():
 
                 log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='success'))
                 log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(quantity * latest_price), status='success'))
-                log_operations.append(Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
+                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
 
                 db.session.add_all(log_operations)
                 db.session.commit()
@@ -128,7 +130,7 @@ def orders():
 
             redis_conn.rpush(f'order_queue', json.dumps(order_data))
             # redis_conn.expire(f'order_queue', 86400)
-            return jsonify(re_code=RET.OK, msg='市价委托订单添加成功')
+            return jsonify(re_code=RET.OK, msg='限价委托订单添加成功')
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -142,17 +144,23 @@ def orders():
 @api.route('/orderlist', methods=['POST'])
 @jwt_required()
 def orderlist():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
-    symbol = request.json.get('symbol')
-    order_type = request.json.get('order_type')
-    side = request.json.get('side')
-    status = request.json.get('status')
+    symbol = request.json.get('symbol', '')
+    order_type = request.json.get('order_type', '')
+    side = request.json.get('side', '')
+    status = request.json.get('status', '')
     page = request.json.get('page')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
     per_page = current_app.config['PAGE_SIZE']
+
+    encrypt_data = f'{symbol}+{order_type}+{side}+{status}+{page}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     query = Orders.query.filter_by(user_id=user_id)
     if symbol:
@@ -170,6 +178,7 @@ def orderlist():
     order_list = []
     for order in order_item:
         order_data = {
+            'order_uuid': order.order_uuid,
             'order_id': order.order_id,
             'symbol': order.symbol,
             'side': order.side,
@@ -193,7 +202,7 @@ def orderlist():
 @api.route('/cancelorder', methods=['POST'])
 @jwt_required()
 def cancel_order():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
@@ -232,7 +241,7 @@ def cancel_order():
 @api.route('/feerate', methods=['GET'])
 @jwt_required()
 def fees():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
@@ -251,7 +260,7 @@ def fees():
 @api.route('/withdrawal', methods=['POST'])
 @jwt_required()
 def withdrawal():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
@@ -263,9 +272,15 @@ def withdrawal():
         finally_amount = Decimal(request.json.get('finally_amount')).quantize(Decimal('0.00000000'))
         address = request.json.get('address')
         pay_pwd = request.json.get('pay_pwd')
+        timestamp = request.json.get('timestamp')
+        x_signature = request.json.get('x_signature')
+        encrypt_data = f'{symbol}+{amount}+{fee}+{finally_amount}+{address}+{pay_pwd}+{timestamp}'
 
         if not all([symbol, fee, amount, finally_amount, address, pay_pwd]):
             return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+        if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+            return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
         if finally_amount != amount - fee:
             return jsonify(re_code=RET.PARAMERR, msg='提现金额错误')
@@ -278,7 +293,6 @@ def withdrawal():
         if wallet.balance < finally_amount:
             return jsonify(re_code=RET.DATAERR, msg='余额不足')
 
-        wallet = Wallet.query.filter_by(user_id=user_id, symbol=symbol).first()
         wallet.balance -= amount
 
         deposits_withdrawals = DepositsWithdrawals(user_id=user_id, transaction_id=str(uuid.uuid4()), transaction_type='withdrawal', symbol=symbol, amount=amount, finally_amount=finally_amount, fee=fee, status='pending', create_at=datetime.now(), update_at=datetime.now())

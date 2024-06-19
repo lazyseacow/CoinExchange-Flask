@@ -1,5 +1,6 @@
 import random
 import datetime
+import uuid
 
 import pymysql
 
@@ -17,7 +18,7 @@ order_types = ['market', 'limit']
 sides = ['buy', 'sell']
 symbols = ["BTC/USDT", "ETH/USDT", "LTC/USDT", "ETC/USDT", "XRP/USDT", "BCH/USDT", "TRX/USDT", "XMR/USDT", "DASH/USDT", "EOS/USDT", "LINK/USDT", "XLM/USDT", "ZEC/USDT", "UNI/USDT", "DOGE/USDT", "QRL/USDT", "ZUGA/USDT", "XTZ/USDT", "IOTA/USDT"]
 statuses = ['pending', 'filled', 'canceled']
-user_ids = [16, 17, 18, 19, 21, 22, 23, 24, 25]
+user_ids = [16, 17, 18, 19, 23, 24, 25, 28]
 
 
 def random_date(start, end):
@@ -48,11 +49,11 @@ try:
                 price = 0
 
             sql = (
-                "INSERT INTO orders (order_type, side, symbol, price, executed_price, quantity, status, created_at, update_at, user_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
+                "INSERT INTO orders (order_type, side, symbol, price, executed_price, quantity, status, created_at, update_at, user_id, order_uuid) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
             cursor.execute(sql, (
             order_type, side, symbol, price, executed_price, quantity, status, created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            update_at.strftime('%Y-%m-%d %H:%M:%S'), user_id))
+            update_at.strftime('%Y-%m-%d %H:%M:%S'), user_id, str(uuid.uuid4())))
 
     # 提交事务
     connection.commit()

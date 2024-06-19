@@ -5,23 +5,29 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
-from app.api.verify import auth
+from app.auth.verify import token_auth, sign_auth
 
 
-@api.route('/walletsinfo', methods=['GET'])
+@api.route('/walletsinfo', methods=['POST'])
 @jwt_required()
 def get_wallets_info():
     """
     获取钱包中所有货币信息
     :return:
     """
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
     try:
-        symbol = request.args.get('symbol')
+        symbol = request.json.get('symbol', '')
+        timestamp = request.json.get('timestamp')
+        x_signature = request.json.get('x_signature')
+        encrypt_data = f'{symbol}+{timestamp}'
+        if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+            return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
         query = Wallet.query
         if symbol:
             query = query.filter_by(symbol=symbol)
@@ -40,13 +46,18 @@ def get_wallets_info():
 @api.route('/modifypaypwd', methods=['POST'])
 @jwt_required()
 def modify_pay_password():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
     old_pwd = request.json.get('old_password')
     new_pwd = request.json.get('new_password')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+    encrypt_data = f'{old_pwd}+{new_pwd}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     pay_password = PayPassword.query.filter_by(user_id=user_id).first()
     if not pay_password.verify_password(old_pwd):
@@ -75,7 +86,7 @@ def modify_pay_password():
 @api.route('/bindwallet', methods=['POST'])
 @jwt_required()
 def bind_wallet():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
@@ -83,12 +94,17 @@ def bind_wallet():
     currency = request.json.get('currency')
     agreement_type = request.json.get('agreement_type')
     wallet_address = request.json.get('wallet_address')
-    # wallet_qr = request.files.get('wallet_qr')
-    comment = request.form.get('comment')
+    comment = request.json.get('comment', '')
     pay_pwd = request.json.get('pay_pwd')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+    encrypt_data = f'{currency}+{agreement_type}+{wallet_address}+{comment}+{pay_pwd}+{timestamp}'
 
     if not all([currency, agreement_type, wallet_address]):
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     if not PayPassword.query.filter_by(user_id=user_id).first().verify_password(pay_pwd):
         return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
@@ -114,14 +130,22 @@ def bind_wallet():
 @api.route('/digitalwallet', methods=['POST'])
 @jwt_required()
 def digital_wallet():
-    user_id = auth.get_userinfo()
+    user_id = token_auth.get_userinfo()
     user = User.query.filter_by(user_id=user_id).first()
 
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
-    symbol = request.json.get('symbol')
-    agreement_type = request.json.get('agreement_type')
+    symbol = request.json.get('symbol', '')
+    agreement_type = request.json.get('agreement_type', '')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+    encrypt_data = f'{symbol}+{agreement_type}+{timestamp}'
+    print(encrypt_data)
+
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
     query = BindWallets.query.filter_by(user_id=user_id)
 
     if symbol:

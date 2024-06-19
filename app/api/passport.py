@@ -1,8 +1,4 @@
-import base64
 import re
-from datetime import timedelta
-import qrcode
-from io import BytesIO
 from flask import current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, get_jwt
 from flask_jwt_extended.exceptions import NoAuthorizationError
@@ -14,7 +10,7 @@ from app.utils.response_code import RET
 from app.utils.generate_account import generate_erc20_account, generate_trc20_account
 from app.utils.generate_qr_code import generate_qr_code
 from config import currency_list
-from app.api.verify import auth
+from app.auth.verify import token_auth, sign_auth
 
 
 @api.route('/register', methods=['POST'])
@@ -158,7 +154,7 @@ def Logout():
     用户在登录状态点击退出登录时，需要清除用户的登录状态
     :return:
     """
-    current_user_id = auth.get_userinfo()
+    current_user_id = token_auth.get_userinfo()
     if User.query.filter_by(user_id=current_user_id):
         user_activity_logs = UserActivityLogs()
         user_activity_logs.log_activity(current_user_id, 'logout', request.remote_addr)
@@ -183,13 +179,16 @@ def Refresh():
 @api.route('/modifypassowrd', methods=['POST'])
 @jwt_required()
 def ModifyPassowrd():
-    """
-    修改用户密码
-    :return:
-    """
-    current_user_id = auth.get_userinfo()
+    current_user_id = token_auth.get_userinfo()
     current_password = request.json.get('current_password')
     new_password = request.json.get('new_password')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+
+    encrypt_data = f'{current_password}+{new_password}+{timestamp}'
+    if not sign_auth.verify_signature(data=encrypt_data, timestamp=timestamp, provided_signature=x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
     user = User().query.filter_by(user_id=current_user_id).first()
     if not user:
         return jsonify(re_code=RET.USERERR, msg='找不到该用户')
@@ -215,9 +214,15 @@ def ModifyPassowrd():
 @api.route('/resetpassowrd', methods=['POST'])
 # @jwt_required()
 def ResetPassword():
-    # current_user_id = auth.get_userinfo()
+    # current_user_id = token_auth.get_userinfo()
     phone = request.json.get('phone')
     new_password = request.json.get('new_password')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+
+    encrypt_data = f'{phone}+{new_password}+{timestamp}'
+    if not sign_auth.verify_signature(data=encrypt_data, timestamp=timestamp, provided_signature=x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     user = User().query.filter_by(phone=phone).first()
 

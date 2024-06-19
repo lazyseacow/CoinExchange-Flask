@@ -16,6 +16,7 @@ class RET:
     USERERR =           4104
     ROLEERR =           4105
     PWDERR =            4106
+    SIGNERR =           4107
     REQERR =            4201
     IPERR =             4202
     THIRDERR =          4301
@@ -36,6 +37,7 @@ error_map = {
     RET.USERERR:        u"用户不存在或未激活",
     RET.ROLEERR:        u"用户身份错误",
     RET.PWDERR:         u"密码错误",
+    RET.SIGNERR:        u"签名错误",
     RET.REQERR:         u"非法请求或请求次数受限",
     RET.IPERR:          u"IP受限",
     RET.THIRDERR:       u"第三方系统错误",
