@@ -42,6 +42,7 @@ def admin_order_list():
 
     symbol = request.json.get('symbol')
     order_type = request.json.get('order_type')
+    order_uuid = request.json.get('order_uuid')
     side = request.json.get('side')
     status = request.json.get('status')
     page = request.json.get('page')
@@ -57,6 +58,8 @@ def admin_order_list():
         query = query.filter(Orders.side == side)
     if status:
         query = query.filter(Orders.status == status)
+    if order_uuid:
+        query = query.filter(Orders.order_uuid == order_uuid)
 
     order_info = query.paginate(page=page, per_page=per_page, error_out=False)
     order_item = order_info.items
@@ -64,6 +67,7 @@ def admin_order_list():
     order_list = []
     for order in order_item:
         order_data = {
+            'order_uuid': order.order_uuid,
             'order_id': order.order_id,
             'symbol': order.symbol,
             'side': order.side,

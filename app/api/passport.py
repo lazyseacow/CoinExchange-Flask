@@ -4,11 +4,13 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from jwt import ExpiredSignatureError
 
+from app import redis_conn
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
 from app.utils.generate_account import generate_erc20_account, generate_trc20_account
 from app.utils.generate_qr_code import generate_qr_code
+from app.utils.generate_captcha_img import generate_captcha_text, generate_captcha_image
 from config import currency_list
 from app.auth.verify import token_auth, sign_auth
 
@@ -71,20 +73,27 @@ def Register():
     return jsonify(re_code=RET.OK, msg='注册成功')
 
 
+@api.route('/captcha', methods=['GET'])
+def get_captcha():
+    text = generate_captcha_text()
+    # 将text保存到redis的set中，有效期一分钟
+    redis_conn.setex(f'captcha_{request.remote_addr}', 60, text)
+    img = generate_captcha_image(text)
+    return jsonify(re_code=RET.OK, msg='验证码发送成功', img=img)
+
+
 @api.route('/login', methods=['POST'])
 def Login():
     """
     login
-    TODO:添加图片验证码
     :return: 返回响应，保持登录状态
     """
 
     account = request.json.get('account')
     password = request.json.get('password')
-    user = User()
+    captcha = request.json.get('captcha')
     user_auth = UserAuthentication()
     user_activity_logs = UserActivityLogs()
-    auth_type = ''
     auth_status = 'success'
     if not all([account, password]):
         return jsonify(re_code=RET.PARAMERR, msg='账号或密码不能为空')
@@ -100,12 +109,17 @@ def Login():
             return jsonify(re_code=RET.PARAMERR, msg='账户名格式错误')
 
         if not user:
-            return jsonify(re_code=RET.NODATA, msg='用户不存在')
+            return jsonify(re_code=RET.USERERR, msg='用户不存在')
 
         if not user.verify_password(password):
             auth_status = 'failed'
             user_auth.log_auth(user.user_id, auth_type, auth_status, account)
             return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
+
+        if not redis_conn.get(f'captcha_{request.remote_addr}'):
+            return jsonify(re_code=RET.NODATA, msg='验证码过期')
+        elif redis_conn.get(f'captcha_{request.remote_addr}') != captcha.encode('utf-8'):
+            return jsonify(re_code=RET.PARAMERR, msg='验证码错误')
 
         user.update_last_seen()
         db.session.flush()

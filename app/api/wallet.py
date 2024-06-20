@@ -141,7 +141,6 @@ def digital_wallet():
     timestamp = request.json.get('timestamp')
     x_signature = request.json.get('x_signature')
     encrypt_data = f'{symbol}+{agreement_type}+{timestamp}'
-    print(encrypt_data)
 
     if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
         return jsonify(re_code=RET.SIGNERR, msg='签名错误')
@@ -158,3 +157,58 @@ def digital_wallet():
         return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
     digital_wallet_info = [wallet.to_json() for wallet in digital_wallets]
     return jsonify(re_code=RET.OK, msg='获取数字钱包成功', data=digital_wallet_info)
+
+
+@api.route('/walletlog', methods=['POST'])
+@jwt_required()
+def wallet_log():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+    symbol = request.json.get('currency', '')
+    operation_type = request.json.get('operation_type', '')
+    status = request.json.get('status', '')
+    page = int(request.json.get('page'))
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+    per_page = current_app.config['PAGE_SIZE']
+
+    if not page:
+        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+    encrypt_data = f'{symbol}+{status}+{operation_type}+{page}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
+    query = WalletOperations.query
+    if symbol:
+        query = query.filter_by(symbol=symbol)
+    if status:
+        query = query.filter_by(status=status)
+    if operation_type:
+        query = query.filter_by(operation_type=operation_type)
+
+    wallet_operations_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    wallet_operations_info = wallet_operations_pagination.items
+
+    wallet_operations_list = []
+    for wallet_operations in wallet_operations_info:
+        wallet_data = {
+            'symbol': wallet_operations.symbol,
+            'operation_type': wallet_operations.operation_type,
+            'operation_time': wallet_operations.operation_time.isoformat() if wallet_operations.operation_time else None,
+            'amount': wallet_operations.amount,
+            'status': wallet_operations.status,
+            'wallet_type': '',
+        }
+        wallet_operations_list.append(wallet_data)
+    data = {
+        'wallet_operations_data': wallet_operations_list,
+        'total_page': wallet_operations_pagination.pages,
+        'current_page': wallet_operations_pagination.page,
+        'per_page': per_page,
+        'total_count': wallet_operations_pagination.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
