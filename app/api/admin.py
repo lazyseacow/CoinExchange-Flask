@@ -1,6 +1,8 @@
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required, create_access_token
 from sqlalchemy.exc import SQLAlchemyError
+
+from app import redis_conn
 from app.api import api
 from app.auth.verify import token_auth
 from app.models.models import *
@@ -11,6 +13,7 @@ from app.utils.response_code import RET
 def admin_login():
     username = request.json.get('username')
     password = request.json.get('password')
+    captcha = request.json.get('captcha')
     if not all([username, password]):
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
 
@@ -19,6 +22,12 @@ def admin_login():
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
     if password != admin.password:
         return jsonify(re_code=RET.PWDERR, msg='密码错误')
+
+    if not redis_conn.get(f'captcha_{request.remote_addr}'):
+        return jsonify(re_code=RET.NODATA, msg='验证码过期')
+    elif redis_conn.get(f'captcha_{request.remote_addr}') != captcha.encode('utf-8'):
+        return jsonify(re_code=RET.PARAMERR, msg='验证码错误')
+
     if admin.role != 'admin':
         return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
 
