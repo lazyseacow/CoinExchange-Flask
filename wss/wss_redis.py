@@ -1,15 +1,18 @@
 import asyncio
 import json
+import logging
 import re
 import websockets
 import redis.asyncio as aioredis
 from config import subscribe_trade
+from log_util import setupLogging
 
 # 存储客户端订阅信息
 subscriptions = {}
 clients = {}
 subscriptions_lock = asyncio.Lock()
 binance_ws = None
+logger = setupLogging(logging.DEBUG, 'wss')
 
 
 # 创建 Redis 连接
@@ -35,9 +38,9 @@ async def manage_binance_connection(redis):
                         await redis.hset('binance_data', stream, json.dumps(data))
                     await handle_binance_message(data)
         except Exception as e:
-            print(f"Error with Binance WebSocket: {e}")
+            logger.error(f"Error with Binance WebSocket: {e}")
             binance_ws = None
-            await asyncio.sleep(5)  # 重试连接前等待
+            await asyncio.sleep(3)  # 重试连接前等待
 
 
 async def handle_binance_message(data):
@@ -47,7 +50,8 @@ async def handle_binance_message(data):
         for client in subscriptions[stream]:
             if client.open:
                 await client.send(json.dumps(data))
-                print(f'client: {client} received send {data}')
+                logger.info(f'client: {client} received send {data}')
+                # print(f'client: {client} received send {data}')
 
 
 async def handle_client(websocket, path):
@@ -58,7 +62,8 @@ async def handle_client(websocket, path):
     try:
         async for message in websocket:
             message = json.loads(message)
-            print(f'Received message from client {client_id}: {message}')
+            logger.info(f'Received message from client {client_id}: {message}')
+            # print(f'Received message from client {client_id}: {message}')
             action = message['action']
             params_list = message['params']
 
@@ -82,7 +87,8 @@ async def handle_client(websocket, path):
                 data = await redis.hget('binance_data', stream)
                 if data:
                     await websocket.send(data.decode('utf-8'))
-
+    except Exception as e:
+        logger.error(f"Error with client {client_id}: {e}")
     finally:
         await handle_disconnect(websocket)
 

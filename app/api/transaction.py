@@ -99,7 +99,7 @@ def orders():
 
         elif order_type == 'limit':
             order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
-                           quantity=quantity, status='pending')
+                           quantity=quantity, status='pending', order_uuid=order_uuid)
             db.session.add(order)
             db.session.flush()
 
@@ -131,6 +131,58 @@ def orders():
             redis_conn.rpush(f'order_queue', json.dumps(order_data))
             # redis_conn.expire(f'order_queue', 86400)
             return jsonify(re_code=RET.OK, msg='限价委托订单添加成功')
+
+        elif order_type == 'stop loss':
+            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
+                           quantity=quantity, status='pending', order_uuid=order_uuid)
+            db.session.add(order)
+            db.session.flush()
+
+            if not base_wallet or base_wallet.balance < quantity:
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
+                db.session.add_all(log_operations)
+                db.session.commit()
+                return jsonify(re_code=RET.NODATA, msg='余额不足')
+
+            order_data = {
+                'order_id': order.order_id,
+                'user_id': user_id,
+                'symbol': symbol,
+                'side': side,
+                'order_type': order_type,
+                'quantity': quantity,
+                'price': price,
+                'status': 'pending'
+            }
+            db.session.commit()
+            redis_conn.rpush(f'order_queue', json.dumps(order_data))
+            return jsonify(re_code=RET.OK, msg='止损委托订单添加成功')
+
+        elif order_type == 'stop profit':
+            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
+                           quantity=quantity, status='pending', order_uuid=order_uuid)
+            db.session.add(order)
+            db.session.flush()
+
+            if not base_wallet or base_wallet.balance < quantity:
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
+                db.session.add_all(log_operations)
+                db.session.commit()
+                return jsonify(re_code=RET.NODATA, msg='余额不足')
+
+            order_data = {
+                'order_id': order.order_id,
+                'user_id': user_id,
+                'symbol': symbol,
+                'side': side,
+                'order_type': order_type,
+                'quantity': quantity,
+                'price': price,
+                'status': 'pending'
+            }
+            db.session.commit()
+            redis_conn.rpush(f'order_queue', json.dumps(order_data))
+            return jsonify(re_code=RET.OK, msg='止盈委托订单添加成功')
 
     except SQLAlchemyError as e:
         db.session.rollback()

@@ -426,7 +426,8 @@ class Orders(db.Model):
 
     order_uuid = db.Column(db.String(255), unique=True, index=True)
     order_id = db.Column(db.Integer, primary_key=True, autoincrement=True, index=True)
-    order_type = db.Column(db.Enum('market', 'limit'))
+    order_type = db.Column(db.Enum('market', 'limit', 'stop loss', 'stop profit'), index=True)
+    # order_type = db.Column(db.String(255))
     side = db.Column(db.Enum('buy', 'sell'))
     symbol = db.Column(db.String(255), index=True)
     price = db.Column(db.DECIMAL(18, 8))
@@ -483,26 +484,6 @@ class Transactions(db.Model):
         }
 
 
-class Entrustment(db.Model):
-    """
-    委托单:用于记录用户在交易市场中的委托单信息，包括买入和卖出订单
-    """
-    __tablename__ = 'entrustment'
-    entrustment_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    symbol = db.Column(db.String(255))
-    entrustment_type = db.Column(db.Enum('buy', 'sell'))
-    side = db.Column(db.Enum('buy', 'sell'))
-    price = db.Column(db.DECIMAL(18, 8))
-    quantity = db.Column(db.DECIMAL(18, 8))
-    status = db.Column(db.Enum('pending', 'filled', 'canceled', 'rejected'), index=True)
-    create_at = db.Column(db.DateTime, default=datetime.now(), index=True)
-    update_at = db.Column(db.DateTime, default=datetime.now())
-    stop_profit_percentage = db.Column(db.DECIMAL(18, 8))
-    stop_loss_percentage = db.Column(db.DECIMAL(18, 8))
-
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
-
-
 # 用户后台管理模块
 class Admins(db.Model):
     """
@@ -516,50 +497,6 @@ class Admins(db.Model):
     role = db.Column(db.String(255), index=True, default='admin')
     create_at = db.Column(db.DateTime, default=datetime.now())
     update_at = db.Column(db.DateTime, default=datetime.now())
-
-
-class Roles(db.Model):
-    """
-    角色表:用于定义用户的角色，包括管理员、普通用户等
-    """
-    __tablename__ = 'roles'
-
-    role_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    role_name = db.Column(db.String(255))
-    permissions = db.Column(db.Text())  # 以JSON格式存储
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
-
-    def to_json(self):
-        return {
-            'role_name': self.role_name,
-            'permissions': self.permissions
-        }
-
-
-class UserRoles(db.Model):
-    """
-    用户角色表:用于关联用户和角色，一个用户可以有多个角色
-    """
-    __tablename__ = 'user_roles'
-
-    user_role_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
-    rold_id = db.Column(db.Integer, db.ForeignKey('roles.role_id'), nullable=False)
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
-
-    def to_json(self):
-        return {
-            'user_id': self.user_id,
-            'rold_id': self.rold_id
-        }
 
 
 class Companies(db.Model):

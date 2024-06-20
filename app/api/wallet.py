@@ -159,6 +159,37 @@ def digital_wallet():
     return jsonify(re_code=RET.OK, msg='获取数字钱包成功', data=digital_wallet_info)
 
 
+@api.route('/delwallet', methods=['POST'])
+@jwt_required()
+def del_wallet():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+    bind_id = request.json.get('bind_id')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+
+    encrypt_data = f'{bind_id}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
+    if not BindWallets.query.filter_by(user_id=user_id, bind_id=bind_id).first():
+        return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
+
+    try:
+        db.session.query(BindWallets).filter_by(user_id=user_id, bind_id=bind_id).delete()
+        db.session.commit()
+        return jsonify(re_code=RET.OK, msg='删除成功')
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error('数据库操作异常:' + str(e))
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
+
+
 @api.route('/walletlog', methods=['POST'])
 @jwt_required()
 def wallet_log():
