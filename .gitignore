@@ -1,7 +1,7 @@
 /venv
 /.git
 /.idea
-/test.py
+test.py
 /migrations
 /logs
 /wss_logs
