@@ -13,7 +13,7 @@ from app.utils.LatestPriceFromRedis import get_price_from_redis
 
 celery = create_app().celery
 redis_conn = redis.Redis(host='localhost', port=6379, db=1)
-logger = setup_logger('celery_task', r'/logs/celery_task.log', logging.DEBUG)
+logger = setup_logger('celery_task', r'logs/celery_task.log', logging.DEBUG)
 
 
 @celery.task(name='process_orders')
@@ -63,14 +63,11 @@ def match_orders(order_data):
     latest_price = get_price_from_redis(redis_conn, base_currency + quote_currency)
 
     try:
-        # base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-        # quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
-
         log_wallet_operations = []
         if order_type == 'limit':
             if side == 'buy' and latest_price <= price:
-                base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-                quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
+                base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).with_for_update().first()
+                quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).with_for_update().first()
                 if not quote_wallet or quote_wallet.balance < quantity * latest_price:
                     log_wallet_operations.append(
                         WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy',
@@ -81,10 +78,11 @@ def match_orders(order_data):
                     db.session.commit()
                     return True
 
-                order = Orders.query.get(order_id)
+                order = Orders.query.with_for_update().get(order_id)
                 # 订单匹配成功，执行交易
                 base_wallet.balance += quantity
                 quote_wallet.balance -= quantity * latest_price
+                db.session.commit()
 
                 log_wallet_operations.append(
                     WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity,
@@ -100,22 +98,23 @@ def match_orders(order_data):
                 return True
 
             elif side == 'sell' and latest_price >= price:
-                base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-                quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
+                base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).with_for_update().first()
+                quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).with_for_update().first()
                 if not quote_wallet or quote_wallet.balance < quantity * latest_price:
                     log_wallet_operations.append(
                         WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy',
                                                        amount=quantity, status='failed'))
-                    order = Orders.query.get(order_id)
+                    order = Orders.query.with_for_update().get(order_id)
                     order.status = 'canceled'
                     db.session.add_all(log_wallet_operations)
                     db.session.commit()
                     return True
 
-                order = Orders.query.get(order_id)
+                order = Orders.query.with_for_update().get(order_id)
                 # 订单匹配成功，执行交易
                 base_wallet.balance -= quantity
                 quote_wallet.balance += quantity * latest_price
+                db.session.commit()
 
                 log_wallet_operations.append(
                     WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity,
@@ -132,19 +131,19 @@ def match_orders(order_data):
             return False
 
         elif order_type == 'stop loss' and latest_price <= price:
-            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).with_for_update().first()
+            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).with_for_update().first()
             if not quote_wallet or quote_wallet.balance < quantity * latest_price:
                 log_wallet_operations.append(
                     WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy',
                                                    amount=quantity, status='failed'))
-                order = Orders.query.get(order_id)
+                order = Orders.query.with_for_update().get(order_id)
                 order.status = 'canceled'
                 db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
 
-            order = Orders.query.get(order_id)
+            order = Orders.query.with_for_update().get(order_id)
             # 订单匹配成功，执行交易
             base_wallet.balance -= quantity
             quote_wallet.balance += quantity * latest_price
@@ -163,22 +162,23 @@ def match_orders(order_data):
             db.session.commit()
             return True
         elif order_type == 'stop profit' and latest_price >= price:
-            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).with_for_update().first()
+            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).with_for_update().first()
             if not quote_wallet or quote_wallet.balance < quantity * latest_price:
                 log_wallet_operations.append(
                     WalletOperations.log_operation(user_id=user_id, symbol=symbol, operation_type='buy',
                                                    amount=quantity, status='failed'))
-                order = Orders.query.get(order_id)
+                order = Orders.query.with_for_update().get(order_id)
                 order.status = 'canceled'
                 db.session.add_all(log_wallet_operations)
                 db.session.commit()
                 return True
 
-            order = Orders.query.get(order_id)
+            order = Orders.query.with_for_update().get(order_id)
             # 订单匹配成功，执行交易
             base_wallet.balance -= quantity
             quote_wallet.balance += quantity * latest_price
+            db.session.commit()
 
             log_wallet_operations.append(
                 WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity,
