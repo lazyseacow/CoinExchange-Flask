@@ -1,6 +1,6 @@
 import json
 import uuid
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required
@@ -39,79 +39,82 @@ def orders():
     side = data.get('side')
     symbol = data.get('symbol')
     quantity = data.get('quantity')
-    price = data.get('price', '')
+    formatted_quantity = Decimal(quantity).quantize(Decimal('0.00000000'))
+    price = data.get('price')
+    formatted_price = Decimal(price).quantize(Decimal('0.00000000'))
     base_currency, quote_currency = symbol.split('/')
     timestamp = data.get('timestamp')
     x_signature = data.get('x_signature')
     if not all([symbol, quantity, order_type, timestamp, x_signature]):
-        print(symbol, quantity, order_type, timestamp, x_signature)
+        # print(symbol, quantity, order_type, timestamp, x_signature)
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
-
-    encrypt_data = f'{order_type}+{side}+{symbol}+{quantity}+{price}+{timestamp}'
+    encrypt_data = f'{order_type}+{side}+{symbol}+{formatted_quantity}+{formatted_price}+{timestamp}'
+    # print(encrypt_data)
     if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
         return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     try:
         latest_price = get_price_from_redis(redis_conn, base_currency+quote_currency)
-        base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
-        quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
-
         order_uuid = str(uuid.uuid4())
         log_operations = []
 
         if order_type == 'market':
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).with_for_update().first()
+            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).with_for_update().first()
             if side == 'sell':
-                if not base_wallet or base_wallet.balance < quantity:
+                if not base_wallet or base_wallet.balance < formatted_quantity:
                     log_operations.append(WalletOperations.log_operation(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
                     db.session.add_all(log_operations)
                     db.session.commit()
                     return jsonify(re_code=RET.NODATA, msg='余额不足')
 
-                base_wallet.balance -= quantity
-                quote_wallet.balance += latest_price * quantity
+                base_wallet.balance -= formatted_quantity
+                quote_wallet.balance += latest_price * formatted_quantity
                 # db.session.commit()
 
-                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-quantity, status='success'))
-                log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=quantity * latest_price, status='success'))
-                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=-formatted_quantity, status='success'))
+                log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=formatted_quantity * latest_price, status='success'))
+                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=formatted_quantity, status='filled'))
                 db.session.add_all(log_operations)
                 db.session.commit()
                 return jsonify(re_code=RET.OK, msg='交易成功')
 
             elif side == 'buy':
-                if not quote_wallet or quote_wallet.balance < latest_price * quantity:
-                    log_operations.append(WalletOperations.log_operation(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity * latest_price, status='failed'))
+                if not quote_wallet or quote_wallet.balance < latest_price * formatted_quantity:
+                    log_operations.append(WalletOperations.log_operation(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity * latest_price, status='failed'))
                     db.session.add_all(log_operations)
                     db.session.commit()
                     return jsonify(re_code=RET.NODATA, msg='余额不足')
 
-                base_wallet.balance += quantity
-                quote_wallet.balance -= quantity * latest_price
+                base_wallet.balance += formatted_quantity
+                quote_wallet.balance -= formatted_quantity * latest_price
                 # db.session.commit()
 
-                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='success'))
-                log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(quantity * latest_price), status='success'))
-                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=quantity, status='filled'))
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity, status='success'))
+                log_operations.append(WalletOperations(user_id=user_id, symbol=quote_currency, operation_type=side, amount=-(formatted_quantity * latest_price), status='success'))
+                log_operations.append(Orders(order_uuid=order_uuid, user_id=user_id, symbol=symbol, side=side, order_type=order_type, executed_price=latest_price, quantity=formatted_quantity, status='filled'))
 
                 db.session.add_all(log_operations)
                 db.session.commit()
                 return jsonify(re_code=RET.OK, msg='交易成功')
 
         elif order_type == 'limit':
-            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
-                           quantity=quantity, status='pending', order_uuid=order_uuid)
+            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=formatted_price,
+                           quantity=formatted_quantity, status='pending', order_uuid=order_uuid)
             db.session.add(order)
             db.session.flush()
 
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
+            quote_wallet = Wallet.query.filter_by(user_id=user_id, symbol=quote_currency).first()
             if side == 'sell':
-                if not base_wallet or base_wallet.balance < quantity:
-                    log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
+                if not base_wallet or base_wallet.balance < formatted_quantity:
+                    log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity, status='failed'))
                     db.session.add_all(log_operations)
                     db.session.commit()
                     return jsonify(re_code=RET.NODATA, msg='余额不足')
             elif side == 'buy':
-                if not quote_wallet or quote_wallet.balance < price * quantity:
-                    log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity * price, status='failed'))
+                if not quote_wallet or quote_wallet.balance < formatted_price * formatted_quantity:
+                    log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity * formatted_price, status='failed'))
                     db.session.add_all(log_operations)
                     db.session.commit()
                     return jsonify(re_code=RET.NODATA, msg='余额不足')
@@ -133,13 +136,15 @@ def orders():
             return jsonify(re_code=RET.OK, msg='限价委托订单添加成功')
 
         elif order_type == 'stop loss':
-            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
-                           quantity=quantity, status='pending', order_uuid=order_uuid)
+            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=formatted_price,
+                           quantity=formatted_quantity, status='pending', order_uuid=order_uuid)
             db.session.add(order)
             db.session.flush()
 
-            if not base_wallet or base_wallet.balance < quantity:
-                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
+
+            if not base_wallet or base_wallet.balance < formatted_quantity:
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity, status='failed'))
                 db.session.add_all(log_operations)
                 db.session.commit()
                 return jsonify(re_code=RET.NODATA, msg='余额不足')
@@ -159,13 +164,15 @@ def orders():
             return jsonify(re_code=RET.OK, msg='止损委托订单添加成功')
 
         elif order_type == 'stop profit':
-            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=price,
-                           quantity=quantity, status='pending', order_uuid=order_uuid)
+            order = Orders(user_id=user_id, symbol=symbol, side=side, order_type=order_type, price=formatted_price,
+                           quantity=formatted_quantity, status='pending', order_uuid=order_uuid)
             db.session.add(order)
             db.session.flush()
 
-            if not base_wallet or base_wallet.balance < quantity:
-                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=quantity, status='failed'))
+            base_wallet = Wallet.query.filter_by(user_id=user_id, symbol=base_currency).first()
+
+            if not base_wallet or base_wallet.balance < formatted_quantity:
+                log_operations.append(WalletOperations(user_id=user_id, symbol=base_currency, operation_type=side, amount=formatted_quantity, status='failed'))
                 db.session.add_all(log_operations)
                 db.session.commit()
                 return jsonify(re_code=RET.NODATA, msg='余额不足')
@@ -261,7 +268,7 @@ def cancel_order():
 
     order_id = request.json.get('order_id')
 
-    order = Orders.query.get(order_id)
+    order = Orders.query.with_for_update().get(order_id)
     if order.user_id != user_id:
         return jsonify(re_code=RET.NODATA, msg='订单不属于当前用户')
 
@@ -334,6 +341,9 @@ def withdrawal():
         if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
             return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
+        if not BindWallets.query.filter_by(address=address).first():
+            return jsonify(re_code=RET.DATAERR, msg='提现地址错误')
+
         if finally_amount != amount - fee:
             return jsonify(re_code=RET.PARAMERR, msg='提现金额错误')
 
@@ -341,7 +351,7 @@ def withdrawal():
         if not pay_password.verify_password(pay_pwd):
             return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
 
-        wallet = Wallet.query.filter_by(user_id=user_id, symbol=symbol).first()
+        wallet = Wallet.query.with_for_update().filter_by(user_id=user_id, symbol=symbol).first()
         if wallet.balance < finally_amount:
             return jsonify(re_code=RET.DATAERR, msg='余额不足')
 
