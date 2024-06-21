@@ -26,6 +26,7 @@ def Register():
         return jsonify(errno=RET.PARAMERR, msg='参数不完整')
 
     user = User()
+    digital_wallet = DigitalWallet()
     pay_password = PayPassword()
 
     phone_exist = user.query.filter_by(phone=phone).first()
@@ -47,13 +48,16 @@ def Register():
     user.password = password
     user.join_time = datetime.now()
     user.last_seen = datetime.now()
-    user.erc20_address = erc20_address
-    user.erc20_private_key = erc20_private_key
-    user.trc20_address = trc20_address
-    user.trc20_private_key = trc20_private_key
-
     db.session.add(user)
     db.session.flush()
+
+    digital_wallet.user_id = user.user_id
+    digital_wallet.erc20_address = erc20_address
+    digital_wallet.trc20_address = trc20_address
+    digital_wallet.erc20_private_key = erc20_private_key
+    digital_wallet.trc20_private_key = trc20_private_key
+
+    db.session.add(digital_wallet)
 
     try:
         db.session.commit()
@@ -133,20 +137,19 @@ def Login():
     access_token = create_access_token(identity=user.user_id, fresh=True)
     refresh_token = create_refresh_token(identity=user.user_id)
 
-    erc_20_qr_code = generate_qr_code(user.erc20_address)
-    trc_20_qr_code = generate_qr_code(user.trc20_address)
-
+    digital_wallet = user.digital_wallet.first()
+    erc_20_qr_code = generate_qr_code(digital_wallet.erc20_address)
+    trc_20_qr_code = generate_qr_code(digital_wallet.trc20_address)
 
     user_info = {
         'username': user.username,
         'email': user.email,
         'phone': user.phone,
         'join_time': user.join_time,
-        'erc20_address': user.erc20_address,
+        'erc20_address': digital_wallet.erc20_address,
         'erc_20_qr_code': erc_20_qr_code,
-        'trc20_address': user.trc20_address,
+        'trc20_address': digital_wallet.trc20_address,
         'trc_20_qr_code': trc_20_qr_code,
-
     }
     return jsonify(re_code=RET.OK, msg='登录成功', data=user_info, access_token=access_token, refresh_token=refresh_token)
 
