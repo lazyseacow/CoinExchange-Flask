@@ -37,14 +37,9 @@ class User(db.Model):
     join_time = db.Column(db.DateTime, default=datetime.now())
     last_seen = db.Column(db.DateTime, default=datetime.now())
 
-    erc20_address = db.Column(db.String(255))
-    erc20_private_key = db.Column(db.String(255))
-
-    trc20_address = db.Column(db.String(255))
-    trc20_private_key = db.Column(db.String(255))
-
     user_authentications = db.relationship('UserAuthentication', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     user_activity_logs = db.relationship('UserActivityLogs', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    digital_wallet = db.relationship('DigitalWallet', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     wallets = db.relationship('Wallet', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     wallet_operations = db.relationship('WalletOperations', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     bind_wallets = db.relationship('BindWallets', backref='user', lazy='dynamic', cascade='all, delete-orphan')
@@ -85,6 +80,20 @@ class User(db.Model):
 
     def __repr__(self):
         return '<User %r>' % self.username
+
+
+class DigitalWallet(db.Model):
+    """
+    用户注册时，初始化的数字钱包
+    """
+    __tablename__ = 'digital_wallet'
+    digital_wallet_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    erc20_address = db.Column(db.String(255), index=True)
+    erc20_private_key = db.Column(db.String(255))
+    trc20_address = db.Column(db.String(255), index=True)
+    trc20_private_key = db.Column(db.String(255))
+
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
 
 class UserAuthentication(db.Model):
@@ -222,13 +231,13 @@ class BindWallets(db.Model):
     __tablename__ = 'bind_wallets'
 
     bind_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    symbol = db.Column(db.String(255))
-    address = db.Column(db.String(255))
+    symbol = db.Column(db.String(255), index=True)
+    address = db.Column(db.String(255), index=True)
     # private_key = db.Column(db.String(255))
-    agreement_type = db.Column(db.String(255))
+    agreement_type = db.Column(db.String(255), index=True)
     comment = db.Column(db.Text(255))
     created_at = db.Column(db.DateTime, default=datetime.now())
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
     def to_json(self):
         return {
