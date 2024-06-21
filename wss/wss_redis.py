@@ -50,8 +50,7 @@ async def handle_binance_message(data):
         for client in subscriptions[stream]:
             if client.open:
                 await client.send(json.dumps(data))
-                logger.info(f'client: {client} received send {data}')
-                # print(f'client: {client} received send {data}')
+                # logger.info(f'client: {client} received send {data}')
 
 
 async def handle_client(websocket, path):
@@ -62,8 +61,7 @@ async def handle_client(websocket, path):
     try:
         async for message in websocket:
             message = json.loads(message)
-            logger.info(f'Received message from client {client_id}: {message}')
-            # print(f'Received message from client {client_id}: {message}')
+            # logger.info(f'Received message from client {client_id}: {message}')
             action = message['action']
             params_list = message['params']
 
@@ -121,7 +119,7 @@ async def main():
     start_server = websockets.serve(handle_client, "0.0.0.0", 8889)
     await start_server
     # 运行直到被取消
-    await asyncio.Future()  # Runs forever
+    await asyncio.Future()
 
 
 if __name__ == "__main__":
