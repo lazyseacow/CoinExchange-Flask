@@ -2,6 +2,8 @@ import decimal
 import json
 import asyncio
 import time
+from decimal import Decimal
+
 import redis
 import redis.asyncio as aioredis
 
@@ -15,7 +17,7 @@ def get_price_from_redis(redis_conn, symbol):
         if price_data is not None:
             # Since price_data is already a bytes object, directly decode it
             price_json = json.loads(price_data.decode('utf-8'))
-            price = decimal.Decimal(price_json['data']['c'])
+            price = Decimal(price_json['data']['c'])
             return price
         else:
             # If there is no price data in Redis, return None or a default value
