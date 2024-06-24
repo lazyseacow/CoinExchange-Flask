@@ -121,10 +121,12 @@ def get_all_user():
         query = query.filter_by(phone=phone)
     if email:
         query = query.filter_by(email=email)
-    if erc20_address:
-        query = query.filter_by(erc20_address=erc20_address)
-    if trc20_address:
-        query = query.filter_by(trc20_address=trc20_address)
+    if erc20_address or trc20_address:
+        query = query.join(DigitalWallet)
+        if erc20_address:
+            query = query.filter_by(erc20_address=erc20_address)
+        if trc20_address:
+            query = query.filter_by(trc20_address=trc20_address)
     user_paginate = query.paginate(page=page, per_page=per_page, error_out=False)
     user_info = user_paginate.items
 
@@ -136,8 +138,8 @@ def get_all_user():
             'username': user.username,
             'email': user.email,
             'phone': user.phone,
-            'erc20_address': user.erc20_address,
-            'trc20_address': user.trc20_address,
+            'erc20_address': user.digital_wallet.first().erc20_address,
+            'trc20_address': user.digital_wallet.first().trc20_address,
             'join_time': user.join_time.isoformat() if user.join_time else None,
             'last_login_ip': last_login.activity_details if last_login else None,
             'last_seen': user.last_seen.isoformat() if user.last_seen else None
