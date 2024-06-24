@@ -15,7 +15,7 @@ class BaseConfig:
 
     # 签名密钥
     SECRET_KEY = "你好hello안녕하세요こんにちは."
-
+    IMAGE_PATH = r"D:\pyproject\CoinExchange-Flask\static\realname"
     # 分页器配置
     PAGE_SIZE = 10
 

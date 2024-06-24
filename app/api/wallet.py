@@ -159,6 +159,51 @@ def digital_wallet():
     return jsonify(re_code=RET.OK, msg='获取数字钱包成功', data=digital_wallet_info)
 
 
+@ api.route('/editbindinfo', methods=['POST'])
+@jwt_required()
+def edit_bind_info():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+    bind_id = request.json.get('bind_id')
+    symbol = request.json.get('symbol')
+    address = request.json.get('address')
+    agreement_type = request.json.get('agreement_type')
+    comment = request.json.get('comment', '')
+    paypwd = request.json.get('paypwd')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+
+    print(request.json)
+    encrypt_data = f'{bind_id}+{symbol}+{address}+{agreement_type}+{comment}+{paypwd}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
+    if not BindWallets.query.filter_by(user_id=user_id, bind_id=bind_id).first():
+        return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
+
+    if not PayPassword.query.filter_by(user_id=user_id).first().verify_password(paypwd):
+        return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
+
+    try:
+        db.session.query(BindWallets).filter_by(user_id=user_id, bind_id=bind_id).update({
+            'symbol': symbol,
+            'address': address,
+            'agreement_type': agreement_type,
+            'comment': comment,
+        })
+        db.session.commit()
+        return jsonify(re_code=RET.OK, msg='修改成功')
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error('数据库操作异常:' + str(e))
+        return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
+
+
 @api.route('/delwallet', methods=['POST'])
 @jwt_required()
 def del_wallet():

@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime
 
 from sqlalchemy import UniqueConstraint
@@ -98,34 +99,42 @@ class DigitalWallet(db.Model):
 
 class UserAuthentication(db.Model):
     """
-    用户身份验证表:用来存储用户的登录方法和相关的的安全设置
+    用户实名认证表
     """
     __tablename__ = 'user_authentication'
 
     auth_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    auth_type = db.Column(db.Enum('email', 'phone'))
-    auth_status = db.Column(db.Enum('success', 'failed'))
-    auth_account = db.Column(db.String(255))
+    real_name = db.Column(db.String(255))
+    document_type = db.Column(db.Enum('passport', 'driving license'))
+    id_card = db.Column(db.String(255))
+    status = db.Column(db.Enum('reviewing', 'not pass', 'pass'), index=True)
+    auth_image = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now())
 
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
-
-    @classmethod
-    def log_auth(cls, user_id, auth_type, auth_status, auth_account):
-        auth = cls(user_id=user_id, auth_type=auth_type, auth_status=auth_status, auth_account=auth_account)
-        auth.save()
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
     def to_json(self):
-        return {
-            'auth_type': self.auth_type,
-            'auth_key': self.auth_key,
-            'enabled': self.enabled
-        }
+        with open(self.auth_image, 'rb') as image_file:
+            # 获取图片的格式
+            # image_format = self.auth_image.split('\n')[0].split('.')[-1]
+            image_data = image_file.read()
+            if image_data:
+                # 将图片数据转换为Base64编码
+                image_base64 = base64.b64encode(image_data).decode('utf-8')
+            else:
+                image_base64 = None
+
+            return {
+                'auth_id': self.auth_id,
+                'real_name': self.real_name,
+                'document_type': self.document_type,
+                'id_card': self.id_card,
+                'status': self.status,
+                'auth_image': image_base64,
+                'created_at': self.created_at.isoformat() if self.created_at else None,
+                'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            }
 
 
 class UserSecuritySettings(db.Model):

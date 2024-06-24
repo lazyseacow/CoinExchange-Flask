@@ -410,3 +410,68 @@ def delete_user():
         return jsonify(re_code=RET.DBERR, msg='删除失败')
     return jsonify(re_code=RET.OK, msg='删除成功')
 
+
+@api.route('/admin/realnameinfo', methods=['GET'])
+@jwt_required()
+def realname_info():
+    admin_identity = token_auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    status = request.args.get('status')
+    page = int(request.args.get('page'))
+    per_page = current_app.config['PAGE_SIZE']
+
+    query = UserAuthentication.query
+    if status:
+        query = query.filter_by(status=status)
+
+    real_name_info_pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    real_name_info = real_name_info_pagination.items
+
+    realname_info_list = []
+    for realname_info in real_name_info:
+        realname_info_data = realname_info.to_json()
+        realname_info_data['user_id'] = realname_info.user.user_id
+        realname_info_data['account'] = realname_info.user.phone
+        realname_info_list.append(realname_info_data)
+
+    data = {
+        'realname_info': realname_info_list,
+        'total_page': real_name_info_pagination.pages,
+        'current_page': real_name_info_pagination.page,
+        'per_page': per_page,
+        'total_count': real_name_info_pagination.total
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
+
+@api.route('/admin/auditinfo', methods=['POST'])
+@jwt_required()
+def audit_info():
+    admin_identity = token_auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    auth_id = request.json.get('auth_id')
+    status = request.json.get('status')
+
+    try:
+        if status == 'delete':
+            UserAuthentication.query.filter_by(auth_id=auth_id).delete()
+            db.session.commit()
+            return jsonify(re_code=RET.OK, msg='删除成功')
+        else:
+            UserAuthentication.query.filter_by(auth_id=auth_id).update({'status': status})
+            db.session.commit()
+            return jsonify(re_code=RET.OK, msg='审核成功')
+    except SQLAlchemyError as e:
+        current_app.logger.error(e)
+        db.session.rollback()
+        return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
+    except Exception as e:
+        current_app.logger.error(e)
+        db.session.rollback()
+        return jsonify(re_code=RET.UNKOWNERR, msg='修改失败')
