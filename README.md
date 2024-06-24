@@ -23,7 +23,7 @@
 * 启动:  
 `celery -A app.tasks.task worker --loglevel=info --concurrency=10 --pool=eventlet`
 * 执行:  
-* `python task.py`
+`python task.py`
 
 ### websocket
 * 启动:  
