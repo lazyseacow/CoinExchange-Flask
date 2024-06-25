@@ -11,7 +11,7 @@ from app import redis_conn
 from app.api import api
 from app.models.models import *
 from app.utils.response_code import RET
-from app.utils.generate_account import generate_erc20_account, generate_trc20_account
+from app.utils.generate_account import generate_erc20_account, generate_trc20_account, generate_btc_account
 from app.utils.generate_qr_code import generate_qr_code
 from app.utils.generate_captcha_img import generate_captcha_text, generate_captcha_image
 from config import currency_list
@@ -45,6 +45,9 @@ def Register():
 
     erc20_address, erc20_private_key = generate_erc20_account()
     trc20_address, trc20_private_key = generate_trc20_account()
+    btc_address, btc_private_key = generate_btc_account()
+    eth_address, eth_private_key = generate_erc20_account()
+
     user.username = username
     user.email = email
     user.phone = phone
@@ -59,6 +62,10 @@ def Register():
     digital_wallet.trc20_address = trc20_address
     digital_wallet.erc20_private_key = erc20_private_key
     digital_wallet.trc20_private_key = trc20_private_key
+    digital_wallet.btc_address = btc_address
+    digital_wallet.btc_private_key = btc_private_key
+    digital_wallet.eth_address = eth_address
+    digital_wallet.eth_private_key = eth_private_key
 
     db.session.add(digital_wallet)
 
@@ -73,7 +80,7 @@ def Register():
         db.session.commit()
 
     except Exception as e:
-        current_app.logger.debug(e)
+        current_app.logger.debug('/register' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='注册失败')
 
@@ -99,18 +106,14 @@ def Login():
     account = request.json.get('account')
     password = request.json.get('password')
     captcha = request.json.get('captcha')
-    user_auth = UserAuthentication()
     user_activity_logs = UserActivityLogs()
-    auth_status = 'success'
     if not all([account, password]):
         return jsonify(re_code=RET.PARAMERR, msg='账号或密码不能为空')
 
     try:
         if re.match(r'\d{11}$', account):
-            auth_type = 'phone'
             user = User.query.filter_by(phone=account).first()
         elif re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', account):
-            auth_type = 'email'
             user = User.query.filter_by(email=account).first()
         else:
             return jsonify(re_code=RET.PARAMERR, msg='账户名格式错误')
@@ -119,8 +122,6 @@ def Login():
             return jsonify(re_code=RET.USERERR, msg='用户不存在')
 
         if not user.verify_password(password):
-            # auth_status = 'failed'
-            # user_auth.log_auth(user.user_id, auth_type, auth_status, account)
             return jsonify(re_code=RET.PWDERR, msg='账户名或密码错误')
 
         if not redis_conn.get(f'captcha_{request.remote_addr}'):
@@ -130,11 +131,10 @@ def Login():
 
         user.update_last_seen()
         db.session.flush()
-        # user_auth.log_auth(user.user_id, auth_type, auth_status, account)
         user_activity_logs.log_activity(user.user_id, 'login', request.remote_addr)
 
     except Exception as e:
-        current_app.logger.debug(e)
+        current_app.logger.debug('/login' + str(e))
         return jsonify(re_code=RET.DBERR, msg='查询用户失败')
 
     access_token = create_access_token(identity=user.user_id, fresh=True)
@@ -143,6 +143,8 @@ def Login():
     digital_wallet = user.digital_wallet.first()
     erc_20_qr_code = generate_qr_code(digital_wallet.erc20_address)
     trc_20_qr_code = generate_qr_code(digital_wallet.trc20_address)
+    btc_qr_code = generate_qr_code(digital_wallet.btc_address)
+    eth_qr_code = generate_qr_code(digital_wallet.eth_address)
 
     user_info = {
         'username': user.username,
@@ -153,18 +155,12 @@ def Login():
         'erc_20_qr_code': erc_20_qr_code,
         'trc20_address': digital_wallet.trc20_address,
         'trc_20_qr_code': trc_20_qr_code,
+        'btc_address': digital_wallet.btc_address,
+        'btc_qr_code': btc_qr_code,
+        'eth_address': digital_wallet.eth_address,
+        'eth_qr_code': eth_qr_code,
     }
     return jsonify(re_code=RET.OK, msg='登录成功', data=user_info, access_token=access_token, refresh_token=refresh_token)
-
-
-@api.errorhandler(NoAuthorizationError)
-def handle_no_authorization(e):
-    return jsonify(re_code=RET.SESSIONERR, msg='缺少授权，请提供令牌')
-
-
-@api.errorhandler(ExpiredSignatureError)
-def handle_expired_error(e):
-    return jsonify(re_code=RET.SESSIONERR, msg='token已过期，请重新登录')
 
 
 @api.route('/logout', methods=['POST'])
@@ -226,7 +222,7 @@ def ModifyPassowrd():
         user_activity_logs.log_activity(current_user_id, 'modify password', request.remote_addr)
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
-        current_app.logger.debug(e)
+        current_app.logger.debug('/modifypassowrd' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='密码修改失败')
 
@@ -259,7 +255,7 @@ def ResetPassword():
         db.session.commit()
         return jsonify(re_code=RET.OK, msg='密码修改成功')
     except Exception as e:
-        current_app.logger.debug(e)
+        current_app.logger.debug('/resetpassowrd' + str(e))
         user.rollback()
         return jsonify(re_code=RET.OK, msg='密码修改失败')
 
@@ -311,14 +307,11 @@ def realname():
         return jsonify(re_code=RET.OK, msg='实名认证已提交')
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.debug('数据库错误:' + str(e))
+        current_app.logger.debug('/realname' + str(e))
         return jsonify(re_code=RET.DBERR, msg='实名认证提交失败')
     except Exception as e:
-        current_app.logger.debug(e)
-        return jsonify(
-            re_code=RET.UNKOWNERR,
-            msg='实名认证提交失败'
-        )
+        current_app.logger.debug('/realname' + str(e))
+        return jsonify(re_code=RET.UNKOWNERR, msg='实名认证提交失败')
 
 
 @api.route('/realname/status', methods=['GET'])

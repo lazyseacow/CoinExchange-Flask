@@ -39,7 +39,7 @@ def get_wallets_info():
         wallet_info = [wallet.to_json() for wallet in wallets]
         return jsonify(re_code=RET.OK, msg='OK', data=wallet_info)
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/walletsinfo' + str(e))
         return jsonify(re_code=RET.DBERR, msg='钱包查询失败')
 
 
@@ -76,10 +76,10 @@ def modify_pay_password():
         return jsonify(re_code=RET.OK, msg='修改成功')
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error('/modifypaypwd' + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/modifypaypwd' + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -98,7 +98,7 @@ def bind_wallet():
     pay_pwd = request.json.get('pay_pwd')
     timestamp = request.json.get('timestamp')
     x_signature = request.json.get('x_signature')
-    encrypt_data = f'{currency}+{agreement_type}+{wallet_address}+{comment}+{pay_pwd}+{timestamp}'
+    encrypt_data = f'{currency}+{wallet_address}+{agreement_type}+{comment}+{pay_pwd}+{timestamp}'
 
     if not all([currency, agreement_type, wallet_address]):
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
@@ -120,10 +120,10 @@ def bind_wallet():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error('/bindwallet' + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/bindwallet' + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -145,7 +145,7 @@ def digital_wallet():
     if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
         return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
-    query = BindWallets.query.filter_by(user_id=user_id)
+    query = BindWallets.query.filter_by(user_id=user_id).order_by(BindWallets.created_at.desc())
 
     if symbol:
         query = query.filter_by(symbol=symbol)
@@ -167,29 +167,28 @@ def edit_bind_info():
     if not user:
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
     bind_id = request.json.get('bind_id')
-    symbol = request.json.get('symbol')
-    address = request.json.get('address')
+    currency = request.json.get('currency')
+    wallet_address = request.json.get('wallet_address')
     agreement_type = request.json.get('agreement_type')
     comment = request.json.get('comment', '')
-    paypwd = request.json.get('paypwd')
+    pay_pwd = request.json.get('pay_pwd')
     timestamp = request.json.get('timestamp')
     x_signature = request.json.get('x_signature')
 
-    print(request.json)
-    encrypt_data = f'{bind_id}+{symbol}+{address}+{agreement_type}+{comment}+{paypwd}+{timestamp}'
+    encrypt_data = f'{bind_id}+{currency}+{wallet_address}+{agreement_type}+{comment}+{pay_pwd}+{timestamp}'
     if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
         return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     if not BindWallets.query.filter_by(user_id=user_id, bind_id=bind_id).first():
         return jsonify(re_code=RET.NODATA, msg='用户钱包信息不存在')
 
-    if not PayPassword.query.filter_by(user_id=user_id).first().verify_password(paypwd):
+    if not PayPassword.query.filter_by(user_id=user_id).first().verify_password(pay_pwd):
         return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
 
     try:
         db.session.query(BindWallets).filter_by(user_id=user_id, bind_id=bind_id).update({
-            'symbol': symbol,
-            'address': address,
+            'symbol': currency,
+            'address': wallet_address,
             'agreement_type': agreement_type,
             'comment': comment,
         })
@@ -197,10 +196,10 @@ def edit_bind_info():
         return jsonify(re_code=RET.OK, msg='修改成功')
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error('/editbindinfo' + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/editbindinfo' + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -229,9 +228,9 @@ def del_wallet():
         return jsonify(re_code=RET.OK, msg='删除成功')
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error('/delwallet' + str(e))
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/delwallet' + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 

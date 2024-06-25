@@ -2,10 +2,14 @@ import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import redis
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_jwt_extended.exceptions import NoAuthorizationError
 from flask_sqlalchemy import SQLAlchemy
+from jwt import ExpiredSignatureError
+
+from app.utils.response_code import RET
 from config import APP_ENV, config
 from app.tasks.celery_utils import make_celery
 
@@ -56,7 +60,15 @@ def create_app():
     redis_conn = redis.StrictRedis(host=app.config['REDIS_HOST'], port=app.config['REDIS_PORT'], db=app.config['REDIS_DB'])
 
     db.init_app(app)
-    # mail.init_app(app)
+
+    # 添加全局错误处理器
+    @app.errorhandler(NoAuthorizationError)
+    def handle_no_authorization(e):
+        return jsonify(re_code=RET.SESSIONERR, msg='缺少授权，请提供令牌'), 401
+
+    @app.errorhandler(ExpiredSignatureError)
+    def handle_expired_error(e):
+        return jsonify(re_code=RET.SESSIONERR, msg='token已过期，请重新登录'), 401
 
     # 注册api_v1_0 蓝图
     from app.api import api

@@ -27,9 +27,9 @@ def get_all_symbols():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error('/symbols' + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
 
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/symbols' + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')

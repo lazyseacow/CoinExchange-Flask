@@ -401,11 +401,11 @@ def delete_user():
         db.session.delete(user)
         db.session.commit()
     except SQLAlchemyError as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/admin/deleteuser' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/admin/deleteuser' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='删除失败')
     return jsonify(re_code=RET.OK, msg='删除成功')
@@ -468,10 +468,10 @@ def audit_info():
             db.session.commit()
             return jsonify(re_code=RET.OK, msg='审核成功')
     except SQLAlchemyError as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/admin/auditinfo' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/admin/auditinfo' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.UNKOWNERR, msg='修改失败')

@@ -41,5 +41,5 @@ def get_klines_from_binance():
         response.raise_for_status()
         return jsonify(re_code=RET.OK, data=response.json())
     except requests.RequestException as e:
-        current_app.logger.error(e)
+        current_app.logger.error('/klines' + str(e))
         return jsonify(re_code=RET.THIRDERR, msg='获取数据失败')

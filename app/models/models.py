@@ -89,10 +89,14 @@ class DigitalWallet(db.Model):
     """
     __tablename__ = 'digital_wallet'
     digital_wallet_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    erc20_address = db.Column(db.String(255), index=True)
+    erc20_address = db.Column(db.String(255))
     erc20_private_key = db.Column(db.String(255))
-    trc20_address = db.Column(db.String(255), index=True)
+    trc20_address = db.Column(db.String(255))
     trc20_private_key = db.Column(db.String(255))
+    btc_address = db.Column(db.String(255))
+    btc_private_key = db.Column(db.String(255))
+    eth_address = db.Column(db.String(255))
+    eth_private_key = db.Column(db.String(255))
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
@@ -112,18 +116,19 @@ class UserAuthentication(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now())
 
-    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
 
     def to_json(self):
         with open(self.auth_image, 'rb') as image_file:
             # 获取图片的格式
-            # image_format = self.auth_image.split('\n')[0].split('.')[-1]
+            image_format = self.auth_image.split('\n')[0].split('.')[-1]
             image_data = image_file.read()
             if image_data:
                 # 将图片数据转换为Base64编码
                 image_base64 = base64.b64encode(image_data).decode('utf-8')
+                image_url = f"data:image/{image_format};base64,{image_base64}"  # 假设图片是JPEG格式
             else:
-                image_base64 = None
+                image_url = None
 
             return {
                 'auth_id': self.auth_id,
@@ -131,7 +136,7 @@ class UserAuthentication(db.Model):
                 'document_type': self.document_type,
                 'id_card': self.id_card,
                 'status': self.status,
-                'auth_image': image_base64,
+                'auth_image': image_url,
                 'created_at': self.created_at.isoformat() if self.created_at else None,
                 'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             }
@@ -255,7 +260,7 @@ class BindWallets(db.Model):
             'address': self.address,
             # 'private_key': self.private_key,
             'agreement_type': self.agreement_type,
-            # 'comment': self.comment,
+            'comment': self.comment,
             # 'created_at': self.created_at
         }
 

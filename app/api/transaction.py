@@ -20,10 +20,10 @@ def get_latest_price():
         symbol = request.get_json().get('symbol')
         return jsonify(re_code=RET.OK, latest_price=get_price_from_redis(redis_conn, symbol))
     except SQLAlchemyError as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/latestprice" + str(e))
         return jsonify(re_code=RET.DBERR, msg='查询错误')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/latestprice" + str(e))
         return jsonify(re_code=RET.UNKOWNERR, msg='未知错误')
 
 
@@ -193,10 +193,10 @@ def orders():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error("/orders" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/orders" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -289,11 +289,11 @@ def cancel_order():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error("/cancelorder" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
 
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/cancelorder" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -309,10 +309,10 @@ def fees():
         return jsonify(re_code=RET.OK, msg='查询成功', data=[fee.to_json() for fee in fees])
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error("/fees" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/fees" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -365,10 +365,10 @@ def withdrawal():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error('数据库操作异常:' + str(e))
+        current_app.logger.error("/withdrawal" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error(e)
+        current_app.logger.error("/withdrawal" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
