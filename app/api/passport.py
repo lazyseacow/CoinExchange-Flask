@@ -140,25 +140,11 @@ def Login():
     access_token = create_access_token(identity=user.user_id, fresh=True)
     refresh_token = create_refresh_token(identity=user.user_id)
 
-    digital_wallet = user.digital_wallet.first()
-    erc_20_qr_code = generate_qr_code(digital_wallet.erc20_address)
-    trc_20_qr_code = generate_qr_code(digital_wallet.trc20_address)
-    btc_qr_code = generate_qr_code(digital_wallet.btc_address)
-    eth_qr_code = generate_qr_code(digital_wallet.eth_address)
-
     user_info = {
         'username': user.username,
         'email': user.email,
         'phone': user.phone,
         'join_time': user.join_time,
-        'erc20_address': digital_wallet.erc20_address,
-        'erc_20_qr_code': erc_20_qr_code,
-        'trc20_address': digital_wallet.trc20_address,
-        'trc_20_qr_code': trc_20_qr_code,
-        'btc_address': digital_wallet.btc_address,
-        'btc_qr_code': btc_qr_code,
-        'eth_address': digital_wallet.eth_address,
-        'eth_qr_code': eth_qr_code,
     }
     return jsonify(re_code=RET.OK, msg='登录成功', data=user_info, access_token=access_token, refresh_token=refresh_token)
 

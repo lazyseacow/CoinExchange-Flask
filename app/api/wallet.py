@@ -287,3 +287,16 @@ def wallet_log():
         'total_count': wallet_operations_pagination.total
     }
     return jsonify(re_code=RET.OK, msg='查询成功', data=data)
+
+
+@api.route('/initwallet', methods=['GET'])
+@jwt_required()
+def init_wallet():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+    init_wallet = user.digital_wallet.first()
+
+    return jsonify(re_code=RET.OK, msg='查询成功', data=init_wallet.to_json())

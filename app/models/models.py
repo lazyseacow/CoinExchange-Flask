@@ -7,6 +7,7 @@ from sqlalchemy.orm import backref
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app import db
+from app.utils.generate_qr_code import generate_qr_code
 
 
 # 交易对列表
@@ -100,6 +101,17 @@ class DigitalWallet(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False, index=True)
 
+    def to_json(self):
+        return {
+            'erc20_address': self.erc20_address,
+            'erc20_qr_code': generate_qr_code(self.erc20_address),
+            'trc20_address': self.trc20_address,
+            'trc20__qr_code': generate_qr_code(self.trc20_address),
+            'btc_address': self.btc_address,
+            'btc_qr_code': generate_qr_code(self.btc_address),
+            'eth_address': self.eth_address,
+            'eth_qr_code': generate_qr_code(self.eth_address),
+        }
 
 class UserAuthentication(db.Model):
     """
