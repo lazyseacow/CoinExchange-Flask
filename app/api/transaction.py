@@ -297,25 +297,6 @@ def cancel_order():
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
-@api.route('/feerate', methods=['GET'])
-@jwt_required()
-def fees():
-    user_id = token_auth.get_userinfo()
-    user = User.query.filter_by(user_id=user_id).first()
-    if not user:
-        return jsonify(re_code=RET.NODATA, msg='用户不存在')
-    try:
-        fees = Fees.query.all()
-        return jsonify(re_code=RET.OK, msg='查询成功', data=[fee.to_json() for fee in fees])
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        current_app.logger.error("/fees：" + str(e))
-        return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
-    except Exception as e:
-        current_app.logger.error("/fees：" + str(e))
-        return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
-
-
 @api.route('/withdrawal', methods=['POST'])
 @jwt_required()
 def withdrawal():
@@ -376,6 +357,8 @@ def withdrawal():
             'finally_amount': finally_amount,
             'fee': fee,
             'status': 'pending',
+            'timestamp': '',
+            'retry_time': 0
         }
         redis_conn.rpush(f'{symbol}_withdrawal_requests', json.dumps(withdrawal_data))
 

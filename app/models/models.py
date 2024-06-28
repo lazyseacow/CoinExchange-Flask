@@ -408,6 +408,7 @@ class Withdrawal(db.Model):
     withdrawal_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     withdrawal_uuid = db.Column(db.String(255), index=True)
     transation_hash = db.Column(db.String(255), index=True)
+    nonce = db.Column(db.Integer)
     symbol = db.Column(db.String(255), index=True)
     amount = db.Column(db.DECIMAL(18, 8))
     fee = db.Column(db.DECIMAL(18, 8))
@@ -482,24 +483,6 @@ class DepositsWithdrawals(db.Model):
             'transaction_id': self.transaction_id,
             'create_at': self.create_at.isoformat() if self.create_at else None,
             'update_at': self.update_at.isoformat() if self.update_at else None
-        }
-
-
-class Fees(db.Model):
-    """
-    交易费率:用于存储交易费率信息
-    """
-    __tablename__ = 'fees'
-    fee_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    currency = db.Column(db.String(255))
-    fee_rate = db.Column(db.DECIMAL(18, 8))
-    create_at = db.Column(db.DateTime, default=datetime.now())
-    update_at = db.Column(db.DateTime, default=datetime.now())
-
-    def to_json(self):
-        return {
-            'currency': self.currency,
-            'fee_rate': self.fee_rate,
         }
 
 
