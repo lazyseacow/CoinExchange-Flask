@@ -401,11 +401,11 @@ def delete_user():
         db.session.delete(user)
         db.session.commit()
     except SQLAlchemyError as e:
-        current_app.logger.error('/admin/deleteuser' + str(e))
+        current_app.logger.error('/admin/deleteuser：' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
     except Exception as e:
-        current_app.logger.error('/admin/deleteuser' + str(e))
+        current_app.logger.error('/admin/deleteuser：' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='删除失败')
     return jsonify(re_code=RET.OK, msg='删除成功')
@@ -468,10 +468,69 @@ def audit_info():
             db.session.commit()
             return jsonify(re_code=RET.OK, msg='审核成功')
     except SQLAlchemyError as e:
-        current_app.logger.error('/admin/auditinfo' + str(e))
+        current_app.logger.error('/admin/auditinfo：' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.DBERR, msg='数据库操作失败')
     except Exception as e:
-        current_app.logger.error('/admin/auditinfo' + str(e))
+        current_app.logger.error('/admin/auditinfo：' + str(e))
         db.session.rollback()
         return jsonify(re_code=RET.UNKOWNERR, msg='修改失败')
+
+
+@api.route('/admin/addsettings', methods=['POST'])
+@jwt_required()
+def withdrawal_setting():
+    admin_identity = token_auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    currency = request.json.get('currency')
+    min_amount = request.json.get('min_amount')
+    max_amount = request.json.get('max_amount')
+    fee_rate = request.json.get('fee_rate')
+    min_fee = request.json.get('min_fee')
+
+    setting = WithdrawalSettings.query.filter_by(currency=currency).first()
+    if not setting:
+        if not all([currency, min_amount, max_amount, fee_rate, min_fee]):
+            return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+        setting = WithdrawalSettings(currency=currency, min_amount=min_amount, max_amount=max_amount, fee_rate=fee_rate, min_fee=min_fee)
+        db.session.add(setting)
+        msg = '添加成功'
+    else:
+        if min_amount:
+            setting.min_amount = min_amount
+        if max_amount:
+            setting.max_amount = max_amount
+        if fee_rate:
+            setting.fee_rate = fee_rate
+        if min_fee:
+            setting.min_fee = min_fee
+        msg = '修改成功'
+
+    db.session.commit()
+    return jsonify(re_code=RET.OK, msg=msg)
+
+
+@api.route('/admin/displaysettings', methods=['GET'])
+@jwt_required()
+def display_withdrawal_settings():
+    admin_identity = token_auth.get_userinfo()
+    admin = Admins.query.filter_by(admin_id=admin_identity['admin_id']).first()
+    if admin_identity['role'] != 'admin' or not admin:
+        return jsonify(re_code=RET.ROLEERR, msg='用户权限错误')
+
+    withdrawal_settings = WithdrawalSettings.query.all()
+
+    withdrawal_settings_list = []
+    for withdrawal_setting in withdrawal_settings:
+        withdrawal_settings_data = withdrawal_setting.to_json()
+        withdrawal_settings_list.append(withdrawal_settings_data)
+
+    return jsonify(re_code=RET.OK, msg='查询成功', data=withdrawal_settings_list)
+
+
+
+
+

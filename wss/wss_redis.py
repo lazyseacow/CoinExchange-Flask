@@ -79,12 +79,11 @@ async def handle_client(websocket, path):
                                     "params": [param],
                                     "id": client_id
                                 }))
-            elif action == 'fetch':
-                stream = params_list[0]
-                # 从Redis哈希表中获取最新的数据并发送给客户端
-                data = await redis.hget('binance_data', stream)
-                if data:
-                    await websocket.send(data.decode('utf-8'))
+            elif action == 'false':
+                async with subscriptions_lock:
+                    for param in params_list:
+                        if param in subscriptions and websocket in subscriptions[param]:
+                            subscriptions[param].remove(websocket)
     except Exception as e:
         logger.error(f"Error with client {client_id}: {e}")
     finally:

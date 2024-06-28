@@ -28,5 +28,5 @@ def generate_qr_code(address):
 
     # 转换为base64编码
     img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-    return img_str
+    image_url = f"data:image/png;base64,{img_str}"
+    return image_url

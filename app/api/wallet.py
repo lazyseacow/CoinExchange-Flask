@@ -67,7 +67,7 @@ def modify_pay_password():
         return jsonify(re_code=RET.PWDERR, msg='新密码与旧密码相同')
 
     pay_password.password = new_pwd
-    pay_password.update_at()
+    pay_password.updated_at = datetime.now()
 
     try:
         db.session.commit()
@@ -92,7 +92,7 @@ def bind_wallet():
         return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
     currency = request.json.get('currency')
-    agreement_type = request.json.get('agreement_type')
+    agreement_type = request.json.get('agreement_type', '')
     wallet_address = request.json.get('wallet_address')
     comment = request.json.get('comment', '')
     pay_pwd = request.json.get('pay_pwd')
@@ -100,7 +100,7 @@ def bind_wallet():
     x_signature = request.json.get('x_signature')
     encrypt_data = f'{currency}+{wallet_address}+{agreement_type}+{comment}+{pay_pwd}+{timestamp}'
 
-    if not all([currency, agreement_type, wallet_address]):
+    if not all([currency, pay_pwd, wallet_address, timestamp, x_signature]):
         return jsonify(re_code=RET.PARAMERR, msg='参数错误')
 
     if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
@@ -300,3 +300,26 @@ def init_wallet():
     init_wallet = user.digital_wallet.first()
 
     return jsonify(re_code=RET.OK, msg='查询成功', data=init_wallet.to_json())
+
+
+@api.route('/withdrawalsetting', methods=['POST'])
+@jwt_required()
+def withdrawal_settings():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
+
+    currency = request.json.get('currency')
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
+    encrypt_data = f'{currency}+{timestamp}'
+
+    if not all([currency, timestamp]):
+        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
+    withdrawal_setting = WithdrawalSettings.query.filter_by(currency=currency).first()
+    return jsonify(re_code=RET.OK, msg='查询成功', data=withdrawal_setting.to_json())

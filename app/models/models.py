@@ -21,7 +21,6 @@ class Symbols(db.Model):
     symbol = db.Column(db.String(255), unique=True, index=True)
     base_currency = db.Column(db.String(255))
     quote_currency = db.Column(db.String(255))
-    # price_precision = db.Column(db.Integer)
 
 
 # 用户信息服务
@@ -112,6 +111,7 @@ class DigitalWallet(db.Model):
             'eth_address': self.eth_address,
             'eth_qr_code': generate_qr_code(self.eth_address),
         }
+
 
 class UserAuthentication(db.Model):
     """
@@ -244,10 +244,6 @@ class PayPassword(db.Model):
         if self._pay_password_hash is None:
             return False
         return check_password_hash(self._pay_password_hash, password)
-
-    def update_at(self):
-        self.update_at = datetime.now()
-        db.session.add(self)
 
 
 class BindWallets(db.Model):
@@ -404,6 +400,60 @@ class SecurityPolicies(db.Model):
 
 
 # 法币交易服务
+class Withdrawal(db.Model):
+    """
+    提现:管理用户的法币提现操作
+    """
+    __tablename__ = 'withdrawal'
+    withdrawal_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    withdrawal_uuid = db.Column(db.String(255), index=True)
+    transation_hash = db.Column(db.String(255), index=True)
+    symbol = db.Column(db.String(255), index=True)
+    amount = db.Column(db.DECIMAL(18, 8))
+    fee = db.Column(db.DECIMAL(18, 8))
+    finally_amount = db.Column(db.DECIMAL(18, 8))
+    status = db.Column(db.Enum('processing', 'pending', 'completed', 'failed'), index=True)
+    create_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    update_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
+
+    def to_json(self):
+        return {
+            'transation_id': self.transation_hash,
+            'currency': self.symbol,
+            'amount': self.amount,
+            'fee': self.fee,
+            'finall_amount': self.finally_amount,
+            'status': self.status,
+            'create_at': self.create_at.isoformat() if self.create_at else None,
+            'update_at': self.update_at.isoformat() if self.update_at else None
+        }
+
+
+class WithdrawalSettings(db.Model):
+    """
+    提现设置:管理用户的提现设置
+    """
+    __tablename__ = 'withdrawal_settings'
+    settings_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    currency = db.Column(db.String(255), unique=True)
+    min_amount = db.Column(db.DECIMAL(18, 8))
+    max_amount = db.Column(db.DECIMAL(18, 8))
+    fee_rate = db.Column(db.DECIMAL(18, 8))
+    min_fee = db.Column(db.DECIMAL(18, 8))
+    create_at = db.Column(db.DateTime, default=datetime.now())
+
+    def to_json(self):
+        return {
+            'currency': self.currency,
+            'min_amount': self.min_amount,
+            'max_amount': self.max_amount,
+            'fee_rate': self.fee_rate,
+            'min_fee': self.min_fee,
+            # 'create_at': self.create_at.isoformat() if self.create_at else None
+        }
+
+
 class DepositsWithdrawals(db.Model):
     """
     充值与提现:管理用户的法币和数字货币的存款和提款操作
@@ -430,8 +480,8 @@ class DepositsWithdrawals(db.Model):
             'amount': self.amount,
             'status': self.status,
             'transaction_id': self.transaction_id,
-            'create_at': self.create_at,
-            'update_at': self.update_at
+            'create_at': self.create_at.isoformat() if self.create_at else None,
+            'update_at': self.update_at.isoformat() if self.update_at else None
         }
 
 
@@ -485,37 +535,8 @@ class Orders(db.Model):
             'price': self.price,
             'quantity': self.quantity,
             'status': self.status,
-            'create_at': self.create_at,
-            'update_at': self.update_at
-        }
-
-
-class Transactions(db.Model):
-    """
-    交易记录:记录所有完成的交易，包括买卖双方的订单匹配结果
-    """
-    __tablename__ = 'transactions'
-
-    transaction_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    transaction_uuid = db.Column(db.String(255), index=True)
-    buyer_order_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
-    seller_oeder_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
-    amount = db.Column(db.DECIMAL(18, 8))
-    price = db.Column(db.DECIMAL(18, 8))
-    created_at = db.Column(db.DateTime, default=datetime.now())
-
-    def save(self):
-        """保存数据"""
-        db.session.add(self)
-        db.session.commit()
-
-    def to_json(self):
-        return {
-            'buyer_order_id': self.buyer_order_id,
-            'seller_oeder_id': self.seller_oeder_id,
-            'amout': self.amout,
-            'price': self.price,
-            'create_at': self.create_at
+            'create_at': self.create_at.isoformat() if self.createdat else None,
+            'update_at': self.update_at.isoformat() if self.update_at else None
         }
 
 

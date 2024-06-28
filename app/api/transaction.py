@@ -1,13 +1,13 @@
 import json
 import uuid
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 
 from flask import current_app, jsonify, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import SQLAlchemyError
-
 from app import redis_conn
-from app.api import api
+from . import api
+# from app.tasks.orders_task import eth_withdrawal
 from app.auth.verify import token_auth, sign_auth
 from app.models.models import *
 from app.utils.response_code import RET
@@ -20,10 +20,10 @@ def get_latest_price():
         symbol = request.get_json().get('symbol')
         return jsonify(re_code=RET.OK, latest_price=get_price_from_redis(redis_conn, symbol))
     except SQLAlchemyError as e:
-        current_app.logger.error("/latestprice" + str(e))
+        current_app.logger.error("/latestprice：" + str(e))
         return jsonify(re_code=RET.DBERR, msg='查询错误')
     except Exception as e:
-        current_app.logger.error("/latestprice" + str(e))
+        current_app.logger.error("/latestprice：" + str(e))
         return jsonify(re_code=RET.UNKOWNERR, msg='未知错误')
 
 
@@ -131,7 +131,7 @@ def orders():
             }
             db.session.commit()
 
-            redis_conn.rpush(f'order_queue', json.dumps(order_data))
+            redis_conn.rpush('order_queue', json.dumps(order_data))
             # redis_conn.expire(f'order_queue', 86400)
             return jsonify(re_code=RET.OK, msg='限价委托订单添加成功')
 
@@ -160,7 +160,7 @@ def orders():
                 'status': 'pending'
             }
             db.session.commit()
-            redis_conn.rpush(f'order_queue', json.dumps(order_data))
+            redis_conn.rpush('order_queue', json.dumps(order_data))
             return jsonify(re_code=RET.OK, msg='止损委托订单添加成功')
 
         elif order_type == 'stop profit':
@@ -188,15 +188,15 @@ def orders():
                 'status': 'pending'
             }
             db.session.commit()
-            redis_conn.rpush(f'order_queue', json.dumps(order_data))
+            redis_conn.rpush('order_queue', json.dumps(order_data))
             return jsonify(re_code=RET.OK, msg='止盈委托订单添加成功')
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error("/orders" + str(e))
+        current_app.logger.error("/orders：" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error("/orders" + str(e))
+        current_app.logger.error("/orders：" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -211,15 +211,15 @@ def orderlist():
     symbol = request.json.get('symbol', '')
     order_type = request.json.get('order_type', '')
     side = request.json.get('side', '')
-    status = request.json.get('status', '')
+    statuses = request.json.get('statuses', [])
     page = request.json.get('page')
     timestamp = request.json.get('timestamp')
     x_signature = request.json.get('x_signature')
     per_page = current_app.config['PAGE_SIZE']
 
-    encrypt_data = f'{symbol}+{order_type}+{side}+{status}+{page}+{timestamp}'
-    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
-        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+    encrypt_data = f'{symbol}+{order_type}+{side}+{statuses}+{page}+{timestamp}'
+    # if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+    #     return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
     query = Orders.query.filter_by(user_id=user_id)
     if symbol:
@@ -228,8 +228,8 @@ def orderlist():
         query = query.filter(Orders.order_type == order_type)
     if side:
         query = query.filter(Orders.side == side)
-    if status:
-        query = query.filter(Orders.status == status)
+    if statuses:
+        query = query.filter(Orders.status.in_(statuses))
 
     order_info = query.order_by(Orders.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     order_item = order_info.items
@@ -289,11 +289,11 @@ def cancel_order():
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error("/cancelorder" + str(e))
+        current_app.logger.error("/cancelorder：" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
 
     except Exception as e:
-        current_app.logger.error("/cancelorder" + str(e))
+        current_app.logger.error("/cancelorder：" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -309,10 +309,10 @@ def fees():
         return jsonify(re_code=RET.OK, msg='查询成功', data=[fee.to_json() for fee in fees])
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error("/fees" + str(e))
+        current_app.logger.error("/fees：" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error("/fees" + str(e))
+        current_app.logger.error("/fees：" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
@@ -326,25 +326,29 @@ def withdrawal():
 
     try:
         symbol = request.json.get('symbol')
-        amount = Decimal(request.json.get('amount')).quantize(Decimal('0.00000000'))
-        fee = Decimal(request.json.get('fee')).quantize(Decimal('0.00000000'))
-        finally_amount = Decimal(request.json.get('finally_amount')).quantize(Decimal('0.00000000'))
+        amount = request.json.get('amount')
+        fee = request.json.get('fee')
+        finally_amount = request.json.get('finally_amount')
+
+        formated_amount = Decimal(amount).quantize(Decimal('0.00000000'))
+        formated_fee = Decimal(fee).quantize(Decimal('0.00000000'))
+        formated_finally_amount = Decimal(finally_amount).quantize(Decimal('0.00000000'))
         address = request.json.get('address')
         pay_pwd = request.json.get('pay_pwd')
         timestamp = request.json.get('timestamp')
         x_signature = request.json.get('x_signature')
-        encrypt_data = f'{symbol}+{amount}+{fee}+{finally_amount}+{address}+{pay_pwd}+{timestamp}'
+        encrypt_data = f'{symbol}+{formated_amount}+{formated_fee}+{formated_finally_amount}+{address}+{pay_pwd}+{timestamp}'
 
         if not all([symbol, fee, amount, finally_amount, address, pay_pwd]):
             return jsonify(re_code=RET.PARAMERR, msg='参数错误')
 
-        if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
-            return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+        # if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        #     return jsonify(re_code=RET.SIGNERR, msg='签名错误')
 
         if not BindWallets.query.filter_by(address=address).first():
             return jsonify(re_code=RET.DATAERR, msg='提现地址错误')
 
-        if finally_amount != amount - fee:
+        if formated_finally_amount != formated_amount - formated_fee:
             return jsonify(re_code=RET.PARAMERR, msg='提现金额错误')
 
         pay_password = PayPassword.query.filter_by(user_id=user_id).first()
@@ -352,28 +356,85 @@ def withdrawal():
             return jsonify(re_code=RET.PWDERR, msg='支付密码错误')
 
         wallet = Wallet.query.with_for_update().filter_by(user_id=user_id, symbol=symbol).first()
-        if wallet.balance < finally_amount:
+        if wallet.balance < formated_finally_amount:
             return jsonify(re_code=RET.DATAERR, msg='余额不足')
 
-        wallet.balance -= amount
+        wallet.balance -= formated_amount
+        wallet.frozen_balance += formated_amount
 
-        deposits_withdrawals = DepositsWithdrawals(user_id=user_id, transaction_id=str(uuid.uuid4()), transaction_type='withdrawal', symbol=symbol, amount=amount, finally_amount=finally_amount, fee=fee, status='pending', create_at=datetime.now(), update_at=datetime.now())
-        wallet_log = WalletOperations(user_id=user_id, symbol=symbol, operation_type='withdrawal', operation_time=datetime.now(), amount=-amount, status='success')
-        db.session.add_all([deposits_withdrawals, wallet_log])
+        withdrawals = Withdrawal(user_id=user_id, withdrawal_uuid=str(uuid.uuid4()), symbol=symbol, amount=formated_amount, finally_amount=formated_finally_amount, fee=formated_fee, status='pending')
+        wallet_log = WalletOperations(user_id=user_id, symbol=symbol, operation_type='withdrawal', operation_time=datetime.now(), amount=-formated_amount, status='success')
+        db.session.add_all([withdrawals, wallet_log])
+        db.session.flush()
+
+        withdrawal_data = {
+            'user_id': user_id,
+            'withdrawal_id': withdrawals.withdrawal_id,
+            'to_address': address,
+            'symbol': symbol,
+            'amount': amount,
+            'finally_amount': finally_amount,
+            'fee': fee,
+            'status': 'pending',
+        }
+        redis_conn.rpush(f'{symbol}_withdrawal_requests', json.dumps(withdrawal_data))
+
         db.session.commit()
-        return jsonify(re_code=RET.OK, msg='提现申请成功')
+        return jsonify(re_code=RET.OK, msg='提现申请已提交，待处理')
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error("/withdrawal" + str(e))
+        current_app.logger.error("/withdrawal：" + str(e))
         return jsonify(re_code=RET.DBERR, msg='数据库操作异常')
     except Exception as e:
-        current_app.logger.error("/withdrawal" + str(e))
+        current_app.logger.error("/withdrawal：" + str(e))
         return jsonify(re_code=RET.SERVERERR, msg='服务器异常')
 
 
+@api.route('/withdrawallog', methods=['POST'])
+@jwt_required()
+def withdrawal_log():
+    user_id = token_auth.get_userinfo()
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(re_code=RET.NODATA, msg='用户不存在')
 
+    currency = request.json.get('currency')
+    status = request.json.get('status')
+    page = int(request.json.get('page'))
+    timestamp = request.json.get('timestamp')
+    x_signature = request.json.get('x_signature')
 
+    per_page = current_app.config['PAGE_SIZE']
+
+    if not all([page, timestamp]):
+        return jsonify(re_code=RET.PARAMERR, msg='参数错误')
+
+    encrypt_data = f'{currency}+{status}+{page}+{timestamp}'
+    if not sign_auth.verify_signature(encrypt_data, timestamp, x_signature):
+        return jsonify(re_code=RET.SIGNERR, msg='签名错误')
+
+    query = Withdrawal.query.filter_by(user_id=user_id)
+    if currency:
+        query = query.filter_by(symbol=currency)
+    if status:
+        query = query.filter_by(status=status)
+
+    withdrawal_logs = query.paginate(page=page, per_page=per_page, error_out=False)
+    withdrawal_log_tiem = withdrawal_logs.items
+
+    withdrawal_list = []
+    for withdrawal in withdrawal_log_tiem:
+        withdrawal_list.append(withdrawal.to_json())
+
+    data = {
+        'total_count': withdrawal_logs.total,
+        'total_page': withdrawal_logs.pages,
+        'current_page': withdrawal_logs.page,
+        'per_page': withdrawal_logs.per_page,
+        'withdrawal_log': withdrawal_list
+    }
+    return jsonify(re_code=RET.OK, msg='查询成功', data=data)
 
 
 
